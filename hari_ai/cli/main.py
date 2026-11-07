@@ -10,8 +10,11 @@ Provides the standalone interactive experience for HariAI:
 from __future__ import annotations
 
 import argparse
+import json
 import sys
 import time
+from dataclasses import asdict
+from pathlib import Path
 from typing import Any, List, Optional
 
 from hari_ai.dream.controller import DreamEngineController, SleepTrigger
@@ -20,6 +23,7 @@ from hari_ai.profile.creator import get_creator_profile
 from hari_ai.runtime.chat import ChatEngine
 from hari_ai.search.engine import SearchEngine
 from hari_ai.memory.store import MemoryStore
+from hari_ai.runtime.settings import load_settings, save_settings, settings_path
 
 
 BANNER = r"""
@@ -218,6 +222,22 @@ def cmd_decide(situation: str) -> None:
     print("=" * 60)
     print(f" Situation:                {situation}")
 
+    settings = load_settings()
+    if settings.openjev_checkpoint:
+        from hari_ai.runtime.openjev import OpenJevAdapter
+        try:
+            decision = OpenJevAdapter(settings.openjev_checkpoint).decide(
+                {'situation': situation}, 'What should be done?',
+                ['review_situation', 'request_human_confirmation', 'stop'])
+            print(f" Choice:                   {decision['choice']}")
+            print(f" Score (raw, uncalibrated): {decision['confidence_raw']:.3f}")
+            print(" Noul (Permission Gate):   REQUIRES APPROVAL")
+            print(f" Open-JEV weights:          {decision['checkpoint_bytes']} bytes (separate from HariNano)")
+            print("=" * 60 + "\n")
+            return
+        except (OSError, ValueError, RuntimeError) as exc:
+            print(f" Open-JEV unavailable: {exc}")
+
     # Evaluate decision logic
     is_critical = any(
         w in situation.lower()
@@ -270,6 +290,61 @@ def cmd_memory(args: List[str]) -> None:
         print(f"Memory command '{sub}' recognized. Memory is operating normally.")
 
 
+def cmd_settings(args: List[str]) -> None:
+    """Show or update chat settings; changing backends is always explicit."""
+    global _CHAT_ENGINE
+    settings = load_settings()
+    if not args or args[0] == 'show':
+        print(f'Settings: {settings_path()}')
+        print(json.dumps(asdict(settings), indent=2))
+        return
+    if args[0] == 'list-models':
+        models = _CHAT_ENGINE.ollama.list_models()
+        print('\n'.join(models) if models else 'No Ollama models found; check that Ollama is running.')
+        return
+    if args[0] == 'nano-model':
+        if len(args) != 3:
+            print('Usage: hari settings nano-model CHECKPOINT TOKENIZER')
+            return
+        checkpoint, tokenizer = (Path(value).expanduser().resolve() for value in args[1:])
+        if not checkpoint.is_file() or not tokenizer.is_file():
+            print('Checkpoint and tokenizer files must both exist.')
+            return
+        settings.nano_checkpoint, settings.nano_tokenizer = str(checkpoint), str(tokenizer)
+        try:
+            new_chat = ChatEngine(memory_manager=_MEMORY_MANAGER, settings=settings)
+            save_settings(settings)
+        except (ValueError, OSError, RuntimeError) as exc:
+            print(f'Settings not changed: {exc}')
+            return
+        _CHAT_ENGINE = new_chat
+        print(f'Set Nano model to {checkpoint}')
+        return
+    mapping = {'backend': 'backend', 'ollama-model': 'ollama_model', 'ollama-host': 'ollama_host',
+               'nano-checkpoint': 'nano_checkpoint', 'nano-tokenizer': 'nano_tokenizer',
+               'openjev-checkpoint': 'openjev_checkpoint'}
+    if args[0] not in mapping or len(args) < 2:
+        print('Usage: hari settings show | list-models | backend nano|ollama | ollama-model NAME | ollama-host URL | nano-model CHECKPOINT TOKENIZER | openjev-checkpoint PATH')
+        return
+    field = mapping[args[0]]
+    value = ' '.join(args[1:])
+    if field.endswith('checkpoint') or field == 'nano_tokenizer':
+        value = str(Path(value).expanduser().resolve())
+        if not Path(value).is_file():
+            print(f'File not found: {value}')
+            return
+    setattr(settings, field, value)
+    try:
+        settings.validate()
+        new_chat = ChatEngine(memory_manager=_MEMORY_MANAGER, settings=settings)
+        save_settings(settings)
+    except (ValueError, OSError, RuntimeError) as exc:
+        print(f'Settings not changed: {exc}')
+        return
+    _CHAT_ENGINE = new_chat
+    print(f'Set {args[0]} to {value}')
+
+
 def cmd_dream(args: List[str]) -> None:
     sub = args[0] if args else "now"
     if sub == "now":
@@ -319,6 +394,7 @@ def repl() -> None:
             print("  /code <task>        - Verifiable code generation with assertions")
             print("  /dream [now|status] - Trigger Dream Engine sleep consolidation")
             print("  /memory [status]    - Inspect hierarchical memory levels")
+            print("  /settings [show|backend|ollama-model|list-models] - Configure chat backend")
             print("  /clear              - Reset multi-turn conversation context")
             print("  /info               - Display Creator Profile (K R Hari Prajwal)")
             print("  /exit               - Exit the chat session\n")
@@ -340,6 +416,9 @@ def repl() -> None:
         elif lower.startswith("/memory") or lower.startswith("memory"):
             parts = user_input.split()
             cmd_memory(parts[1:] if len(parts) > 1 else [])
+        elif lower.startswith('/settings') or lower.startswith('settings'):
+            parts = user_input.split()
+            cmd_settings(parts[1:])
         elif lower.startswith("/ask ") or lower.startswith("ask "):
             p = user_input.split(" ", 1)[1]
             cmd_ask(p, stream=True)
@@ -351,6 +430,9 @@ def repl() -> None:
 
 
 def main():
+    # Redirected Windows terminals can use legacy encodings that lack emoji.
+    if hasattr(sys.stdout, 'reconfigure'):
+        sys.stdout.reconfigure(errors='backslashreplace')
     parser = argparse.ArgumentParser(description="HariAI Command Line Interface", add_help=False)
     parser.add_argument("command", nargs="?", default="run", help="Subcommand to execute")
     parser.add_argument("args", nargs="*", help="Arguments for subcommand")
@@ -379,8 +461,10 @@ def main():
         cmd_memory(all_args)
     elif cmd == "dream":
         cmd_dream(all_args)
+    elif cmd == "settings":
+        cmd_settings(all_args)
     elif cmd in ["help", "-h", "--help"]:
-        print("Usage: hari [run|ask|think|decide|code|memory|dream|info|version|help]")
+        print("Usage: hari [run|ask|think|decide|code|memory|dream|settings|info|version|help]")
     else:
         # Default behavior: treat unknown arguments as direct interactive prompt
         full_query = " ".join([parsed.command] + all_args)
