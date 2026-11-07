@@ -1,6 +1,6 @@
 """Neural network architecture package for HariAI."""
 
-from hari_ai.model.config import UAIANanoConfig
+from hari_ai.model.config import HariNanoConfig, UAIANanoConfig
 from hari_ai.model.layers import (
     GroupedQueryAttention,
     RMSNorm,
@@ -9,12 +9,14 @@ from hari_ai.model.layers import (
     apply_rotary_emb,
 )
 from hari_ai.model.transformer import (
+    HariNanoModel,
     StructuredDecisionHead,
     UAIANanoModel,
     UAIATransformerBlock,
 )
 
 __all__ = [
+    "HariNanoConfig",
     "UAIANanoConfig",
     "RMSNorm",
     "RotaryEmbedding",
@@ -23,6 +25,7 @@ __all__ = [
     "apply_rotary_emb",
     "StructuredDecisionHead",
     "UAIATransformerBlock",
+    "HariNanoModel",
     "UAIANanoModel",
 ]
 

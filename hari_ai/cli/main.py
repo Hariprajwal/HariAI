@@ -18,6 +18,7 @@ from hari_ai.dream.controller import DreamEngineController, SleepTrigger
 from hari_ai.memory.hierarchy import EpisodicEntry, HierarchicalMemoryManager
 from hari_ai.profile.creator import get_creator_profile
 from hari_ai.runtime.chat import ChatEngine
+from hari_ai.search.engine import SearchEngine
 
 
 BANNER = r"""
@@ -30,12 +31,13 @@ BANNER = r"""
         Tiny in size.
         Big in intelligence.
 
-HariAI v0.1.0
+HariNano v0.1.0
 """
 
-# Global memory, dream controller, and conversational chat engine singletons for local session
+# Global memory, dream controller, search engine, and chat engine singletons for local session
 _MEMORY_MANAGER = HierarchicalMemoryManager()
 _DREAM_CONTROLLER = DreamEngineController(memory_manager=_MEMORY_MANAGER)
+_SEARCH_ENGINE = SearchEngine(memory_manager=_MEMORY_MANAGER)
 _CHAT_ENGINE = ChatEngine(memory_manager=_MEMORY_MANAGER)
 
 
@@ -75,7 +77,14 @@ def cmd_info() -> None:
 
 
 def cmd_version() -> None:
-    print("HariAI version 0.1.0 (UAIA-Nano Architecture, <50MB Target)")
+    print("HariAI version 0.1.0 (HariNano Architecture, <= 45MB Target)")
+
+
+def cmd_search(query: str) -> None:
+    """Executes live web/local search and AI summarization."""
+    print(f"\n[HariNano Search Engine]: Gathering and synthesizing data for '{query}'...")
+    summary = _SEARCH_ENGINE.search_and_summarize(query)
+    print("\n" + summary + "\n")
 
 
 def cmd_ask(prompt: str, stream: bool = False) -> None:
@@ -191,6 +200,7 @@ def repl() -> None:
             cmd_info()
         elif lower in ["/?", "/help", "help", "hari help"]:
             print("\nAvailable Commands:")
+            print("  /search <query>     - Web/Local search & AI research summarization")
             print("  /think <problem>    - Deliberate reasoning mode (<|thought|>)")
             print("  /decide <situation> - Open-JEV typed single-forward-pass decision evaluation")
             print("  /code <task>        - Verifiable code generation with assertions")
@@ -199,6 +209,9 @@ def repl() -> None:
             print("  /clear              - Reset multi-turn conversation context")
             print("  /info               - Display Creator Profile (K R Hari Prajwal)")
             print("  /exit               - Exit the chat session\n")
+        elif lower.startswith("/search ") or lower.startswith("search "):
+            q = user_input.split(" ", 1)[1]
+            cmd_search(q)
         elif lower.startswith("/think ") or lower.startswith("think "):
             p = user_input.split(" ", 1)[1]
             cmd_think(p)
@@ -243,6 +256,8 @@ def main():
         cmd_decide(" ".join(all_args))
     elif cmd == "code":
         cmd_code(" ".join(all_args))
+    elif cmd == "search":
+        cmd_search(" ".join(all_args))
     elif cmd == "info":
         cmd_info()
     elif cmd in ["version", "-v", "--version"]:

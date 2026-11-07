@@ -1,14 +1,14 @@
-"""Configuration for the Unified Adaptive Intelligence Architecture (UAIA) Nano model."""
+"""Configuration for the HariNano Foundation Model."""
 
 from dataclasses import dataclass
 
 
 @dataclass
-class UAIANanoConfig:
-    """Model hyperparameters for HariAI Nano (UAIA-Nano).
+class HariNanoConfig:
+    """Model hyperparameters for HariNano.
 
     Target parameter budget: ~46.4M - 68.5M parameters
-    Target quantized file size: <= 50 MB
+    Target quantized file size: <= 45 MB - 50 MB
     """
 
     vocab_size: int = 4096
@@ -27,4 +27,8 @@ class UAIANanoConfig:
     @property
     def head_dim(self) -> int:
         return self.d_model // self.n_heads
+
+
+# Backwards compatibility alias
+UAIANanoConfig = HariNanoConfig
 

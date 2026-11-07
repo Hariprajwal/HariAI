@@ -73,12 +73,12 @@ class StructuredDecisionHead(nn.Module):
         return action_logits, confidence, permission_required
 
 
-class UAIANanoModel(nn.Module):
-    """HariAI Nano: Unified Adaptive Intelligence Architecture (UAIA) Foundation Model."""
+class HariNanoModel(nn.Module):
+    """HariNano: Custom Independent Foundation Model engineered by K R Hari Prajwal."""
 
-    def __init__(self, config: Optional[UAIANanoConfig] = None):
+    def __init__(self, config: Optional[HariNanoConfig] = None):
         super().__init__()
-        self.config = config or UAIANanoConfig()
+        self.config = config or HariNanoConfig()
 
         # Input token embeddings
         self.token_embeddings = nn.Embedding(
@@ -289,3 +289,7 @@ class UAIANanoModel(nn.Module):
             next_token_logits = out["logits"][:, -1, :]
 
         return generated
+
+
+# Backwards compatibility alias
+UAIANanoModel = HariNanoModel
