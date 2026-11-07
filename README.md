@@ -13,7 +13,7 @@
         Big in intelligence.
 ```
 
-**An original, open-weight, autonomous intelligence system built from scratch with complete neural weights strictly below 50 MB.**
+**An experimental, compact AI runtime and from-scratch model research project. Its prototype checkpoint is small; it is not yet a competitive general-purpose language model.**
 
 [![CI/CD Test Suite](https://img.shields.io/badge/Tests-84%20Passing-brightgreen.svg)](#)
 [![Model Size](https://img.shields.io/badge/Model%20Size-26.0%20MB-blue.svg)](#)
@@ -42,7 +42,7 @@
 
 Modern frontier AI models require tens of gigabytes of VRAM, massive clusters, and constant cloud connections. **HariAI** is engineered under a radical constraint:
 
-> **Maximum intelligence per megabyte, per parameter, and per unit of computation.**
+> **The research goal is to maximize useful capability within a small model budget.**
 > **Complete downloadable neural network weights strictly $\le 50.00\text{ MB}$.**
 
 HariAI achieves this via an original, from-scratch neural architecture (**UAIA-Nano**) combined with formal mathematical grounding (Lean 4), typed single-forward-pass decision heads (Open-JEV style), multi-agent cluster intelligence, and a continual learning **Dream Engine** inspired by biological sleep consolidation.
@@ -106,6 +106,16 @@ Or run via Python:
 ```bash
 python -m hari_ai.cli
 ```
+
+### Use a local Ollama model for chat
+
+HariAI chat uses an installed Ollama chat model when the Ollama service is running. It discovers installed models automatically and prefers common instruction model families. To choose a specific installed model, set `HARIAI_OLLAMA_MODEL` to the exact name shown by `ollama list` (for example, `qwen3:8b`). Set `HARIAI_OLLAMA_HOST` only when Ollama uses a non-default endpoint. Chat sends the system prompt and recent conversation turns.
+
+The small HariNano checkpoint is a from-scratch architecture experiment trained on a tiny synthetic curriculum for 60 steps by default. It has not been pretrained on a large text corpus or meaningfully instruction-tuned, so it should not be presented as a capable standalone assistant. Training larger or more capable weights requires substantial curated data and compute; the Ollama integration provides local inference and does not itself train or distill weights. If Ollama is unavailable, the chat UI identifies responses as offline fallback content and does not report fabricated confidence.
+
+### Arithmetic student research experiment
+
+`scripts/collect_teacher_arithmetic.py` queries a chosen local Ollama teacher and records answers with their provenance and an independent arithmetic check. `scripts/train_arithmetic_student.py` trains a randomly initialized student on the verified teacher answers and a generated arithmetic curriculum, then evaluates held-out expressions before and after training and quantization. It writes a report and enforces a 35,000,000-byte limit on the exported checkpoint. Select a new output directory for each run. These measurements cover only simple arithmetic; they do not measure broad assistant quality.
 
 ### 3. Interactive CLI Commands
 

@@ -1,6 +1,7 @@
-"""Conversational Multi-Turn Chat Engine for HariAI.
+"""Conversational multi-turn chat engine for HariAI.
 
-Operates 100% offline using our custom-trained HariNano LLM:
+Prefers an installed local Ollama instruction model. If Ollama is unavailable,
+the legacy offline response handlers remain available:
 - Multi-turn conversational memory with context retention.
 - Real-time typewriter token streaming for responsive terminal output.
 - Calibrated generation confidence score calculation after every response.
@@ -19,13 +20,14 @@ from typing import Iterator, List, Optional, Tuple
 from hari_ai.memory.hierarchy import EpisodicEntry, HierarchicalMemoryManager
 from hari_ai.profile.creator import get_creator_profile
 from hari_ai.runtime.engine import GenerationConfig, InferenceEngine
+from hari_ai.runtime.ollama import OllamaClient
 
 
 @dataclass
 class ChatMessage:
     role: str  # "system", "user", "assistant"
     content: str
-    confidence: float = 0.95
+    confidence: Optional[float] = None
     timestamp: float = field(default_factory=time.time)
 
 
@@ -37,14 +39,17 @@ class ChatEngine:
         memory_manager: Optional[HierarchicalMemoryManager] = None,
         system_prompt: Optional[str] = None,
         inference_engine: Optional[InferenceEngine] = None,
+        ollama_client: Optional[OllamaClient] = None,
     ):
         self.memory = memory_manager or HierarchicalMemoryManager()
         self.creator_profile = get_creator_profile()
         self.engine = inference_engine or InferenceEngine(model_path_or_name="nano")
+        self.ollama = ollama_client or OllamaClient()
         self.system_prompt = system_prompt or (
-            "You are HariAI (HariNano), an ultra-compact, fast, and intelligent "
-            "AI assistant built from scratch by K R Hari Prajwal. "
-            "You are articulate, friendly, mathematically rigorous, and helpful."
+            "You are HariAI, a helpful assistant. HariNano is an early from-scratch "
+            "model experiment; when Ollama is available, responses come from the "
+            "selected local Ollama model. Be accurate and clear about uncertainty. "
+            "Do not claim code or reasoning was verified unless a tool verified it."
         )
         self.history: List[ChatMessage] = [
             ChatMessage(role="system", content=self.system_prompt)
@@ -73,7 +78,10 @@ class ChatEngine:
         response_text, confidence_score = self._synthesize_response(clean_input)
 
         # Append confidence readout
-        confidence_footer = f"\n\033[90m[Confidence: {confidence_score:.1f}% | HariNano LLM]\033[0m\n"
+        if confidence_score < 0:
+            confidence_footer = "\n\033[90m[Ollama local model | confidence not calibrated]\033[0m\n"
+        else:
+            confidence_footer = "\n\033[90m[Offline fallback | confidence not calibrated]\033[0m\n"
         full_assistant_message = response_text + confidence_footer
 
         # Record assistant reply in history
@@ -81,7 +89,7 @@ class ChatEngine:
             ChatMessage(
                 role="assistant",
                 content=full_assistant_message,
-                confidence=confidence_score / 100.0,
+                confidence=(confidence_score / 100.0 if confidence_score >= 0 else None),
             )
         )
 
@@ -107,7 +115,7 @@ class ChatEngine:
         yield confidence_footer
 
     def _synthesize_response(self, prompt: str) -> Tuple[str, float]:
-        """Determines the appropriate persona response and calibrated confidence score."""
+        """Respond with Ollama when available, otherwise use offline handlers."""
         lower = prompt.lower()
 
         # 1. Identity & Creator Queries (Always strictly preserved)
@@ -141,9 +149,8 @@ class ChatEngine:
 
         if any(w in lower for w in ["how are you", "how are you doing", "how's it going"]):
             return (
-                "I'm operating at peak efficiency! All 16 neural layers and hierarchical memory tiers "
-                "(working, episodic, semantic, procedural) are active and ready.\n"
-                "How are you doing today? What can I help you work on?",
+                "I'm ready to help. If Ollama is running, I can answer with one of your installed local models.\n"
+                "What would you like to work on?",
                 96.8,
             )
 
@@ -176,6 +183,20 @@ class ChatEngine:
                 return f"Earlier you asked: \"{prev}\".", 98.0
             return "This is the start of our conversation.", 98.0
 
+        # Prefer a real installed instruction model for open-ended responses.
+        # Only a failed/offline Ollama call falls through to the legacy offline handlers.
+        recent_messages = [
+            {"role": "system", "content": self.system_prompt},
+            *[
+                {"role": message.role, "content": message.content}
+                for message in self.history[-24:]
+                if message.role in ("user", "assistant")
+            ],
+        ]
+        ollama_response = self.ollama.chat(recent_messages)
+        if ollama_response:
+            return ollama_response, -1.0
+
         # Conversational dialogue check
         if any(w in lower for w in ["do u even say anything", "do you say anything", "can you speak", "can you talk", "are you there", "hello?", "say something"]):
             return (
@@ -187,7 +208,7 @@ class ChatEngine:
 
         if any(w in lower for w in ["what can you do", "help me with", "your capabilities", "what do you do"]):
             return (
-                "I'm an ultra-compact neural intelligence system (HariNano) designed to fit strictly under 50 MB! "
+                "I'm an experimental AI runtime. The standalone HariNano checkpoint is not yet a capable general-purpose model. "
                 "Here is what I can do:\n\n"
                 "1. **Natural Dialogue & Explanations:** Answer questions about technology, science, and AI.\n"
                 "2. **Algorithmic Coding:** Write verified Python functions with invariants and test assertions.\n"
@@ -509,7 +530,7 @@ class ChatEngine:
                 "5. **Inference with KV Caching:** When generating text token-by-token, past keys and values are cached in memory, "
                 "enabling $O(1)$ token step complexity instead of $O(T)$ quadratic re-computation.\n\n"
                 "In **HariAI (HariNano)**, we constrain this entire mathematical pipeline to under 50 MB, proving that "
-                "carefully optimized Grouped-Query Latent Attention (GQLA) and tied embeddings can deliver frontier-grade reasoning."
+                "Grouped-Query attention and tied embeddings are design choices intended to reduce model size and runtime cost."
             )
 
         # Quantum computing

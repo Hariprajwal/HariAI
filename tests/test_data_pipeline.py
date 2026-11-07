@@ -79,13 +79,23 @@ class TestDataPipeline(unittest.TestCase):
             self.assertEqual(sample["input_ids"].shape, (seq_len,))
             self.assertEqual(sample["labels"].shape, (seq_len,))
 
-            # Verify causal next-token shift
-            self.assertTrue(
-                torch.equal(sample["input_ids"][1:], sample["labels"][:-1])
-            )
+            # The model applies the causal shift internally.
+            self.assertTrue(torch.equal(sample["input_ids"], sample["labels"]))
 
             # Cleanly close memory maps before temporary directory deletion on Windows
             dataset.close()
+
+    def test_sequence_can_cross_multiple_small_shards(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            writer = ShardWriter(output_dir=tmpdir, shard_size_tokens=3)
+            writer.write_tokens(list(range(20)))
+            dataset = StreamingBinaryDataset(writer.close(), seq_len=8)
+            try:
+                sample = dataset[1]
+                self.assertEqual(sample["input_ids"].tolist(), list(range(8, 16)))
+                self.assertTrue(torch.equal(sample["input_ids"], sample["labels"]))
+            finally:
+                dataset.close()
 
 
 if __name__ == "__main__":

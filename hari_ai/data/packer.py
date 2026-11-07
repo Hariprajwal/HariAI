@@ -93,19 +93,17 @@ class StreamingBinaryDataset(Dataset):
             local_offset -= self.shard_token_counts[shard_idx]
             shard_idx += 1
 
-        needed_tokens = self.seq_len + 1
-        mmap = self.mmaps[shard_idx]
-
-        if local_offset + needed_tokens <= len(mmap):
-            chunk = np.array(mmap[local_offset : local_offset + needed_tokens], dtype=np.int64)
-        else:
-            chunk = np.array(mmap[local_offset:], dtype=np.int64)
-            remaining = needed_tokens - len(chunk)
-            if shard_idx + 1 < len(self.mmaps):
-                next_chunk = np.array(self.mmaps[shard_idx + 1][:remaining], dtype=np.int64)
-                chunk = np.concatenate([chunk, next_chunk])
-
-        input_ids = torch.from_numpy(chunk[:-1])
-        labels = torch.from_numpy(chunk[1:])
+        remaining = self.seq_len
+        chunks = []
+        while remaining:
+            mmap = self.mmaps[shard_idx]
+            part = np.array(mmap[local_offset : local_offset + remaining], dtype=np.int64)
+            chunks.append(part)
+            remaining -= len(part)
+            shard_idx += 1
+            local_offset = 0
+        input_ids = torch.from_numpy(np.concatenate(chunks))
+        # The model shifts labels internally; pre-shifting here skips a token.
+        labels = input_ids.clone()
 
         return {"input_ids": input_ids, "labels": labels}

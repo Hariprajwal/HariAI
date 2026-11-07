@@ -1,8 +1,8 @@
-"""Train Custom HariAI Nano LLM from scratch.
+"""Run a small from-scratch HariNano architecture experiment.
 
-This script trains our own independent neural model weights (zero borrowed weights)
-with full conversational instruction tuning, mathematical reasoning, algorithmic coding,
-and Open-JEV decision confidence calibration.
+The default curriculum and 60-step run are smoke-scale demonstrations, not
+general-purpose assistant training or instruction tuning. They do not distill
+from Ollama teachers; use the runtime's Ollama integration for local inference.
 """
 
 from __future__ import annotations
@@ -168,6 +168,7 @@ def train_custom_llm(
     tokenizer.train(full_corpus, max_merges=120)
     tokenizer_path = os.path.join(data_dir, "tokenizer.json")
     tokenizer.save(tokenizer_path)
+    tokenizer.save(os.path.join(output_dir, "tokenizer.json"))
     print(f" -> Tokenizer ready with {tokenizer.vocab_size} tokens.")
 
     # 3. Binary Shard Packing
@@ -232,7 +233,7 @@ def train_custom_llm(
     # Export INT4 quantized checkpoint (<50 MB guaranteed)
     int4_ckpt_path = os.path.join(output_dir, "hari_ai_nano_int4.pt")
     quant_model = quantize_model(model, precision="int4")
-    save_info = save_quantized_checkpoint(quant_model, int4_ckpt_path)
+    save_info = save_quantized_checkpoint(quant_model, int4_ckpt_path, max_size_mb=35.0)
     print(f" -> Quantized INT4 Checkpoint saved: {int4_ckpt_path} (Size: {save_info['size_mb']} MB)")
 
     print("\n" + "=" * 80)

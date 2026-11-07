@@ -31,6 +31,8 @@ inference: false
 **HariAI Nano** is an original, open-weight, extremely small artificial intelligence foundation model designed from scratch.
 Its complete downloadable neural network weights are strictly below **50 MB** ($46.4\text{M}$ total parameters, occupying $\approx \mathbf{26.0\text{ MB}}$ at INT4).
 
+**Readiness note:** the repository's default training script does not produce this stated 46.4M-parameter configuration. It trains a 128-wide, 4-layer prototype for 60 steps on a small synthetic curriculum. That checkpoint is not a capable general-purpose assistant, and its confidence head has not been calibrated. Treat the architecture figures below as design targets unless tied to a specific measured checkpoint and evaluation artifact.
+
 Unlike conventional small language models that waste the majority of their parameter capacity on massive vocabulary embedding matrices, HariAI uses a **$4,096$-token Byte-Fallback BPE Tokenizer** with tied input/output embeddings, allocating $>95\%$ of parameter capacity directly to deep relational transformer blocks.
 
 ---

@@ -25,6 +25,7 @@ from hari_ai.model.transformer import HariNanoModel, UAIANanoModel
 from hari_ai.profile.creator import get_creator_profile
 from hari_ai.quantization.quantizer import load_quantized_checkpoint
 from hari_ai.tokenizer.bpe import ByteFallbackBPETokenizer
+from hari_ai.runtime.ollama import OllamaClient
 
 
 class HardwareBackend(str, enum.Enum):
@@ -60,6 +61,7 @@ class InferenceEngine:
         model_path_or_name: str = "nano",
         backend: Optional[HardwareBackend] = None,
         config: Optional[UAIANanoConfig] = None,
+        tokenizer_path: Optional[str] = None,
     ):
         self.backend = backend or detect_best_hardware()
         self.device = torch.device("cuda" if self.backend == HardwareBackend.CUDA else "cpu")
@@ -72,10 +74,10 @@ class InferenceEngine:
 
         # 1. Initialize or Load Model
         if os.path.exists(model_path_or_name):
-            if model_path_or_name.endswith(".pt") and "quant" in model_path_or_name:
+            ckpt = torch.load(model_path_or_name, map_location=self.device, weights_only=False)
+            if ckpt.get("format") == "hari_ai_quantized_v1":
                 self.model = load_quantized_checkpoint(model_path_or_name, device=str(self.device))
             else:
-                ckpt = torch.load(model_path_or_name, map_location=self.device, weights_only=False)
                 self.model = UAIANanoModel(ckpt.get("config", config or UAIANanoConfig()))
                 self.model.load_state_dict(ckpt["model_state_dict"])
         else:
@@ -86,7 +88,14 @@ class InferenceEngine:
         self.model.eval()
 
         # 2. Tokenizer
-        self.tokenizer = ByteFallbackBPETokenizer(target_vocab_size=self.model.config.vocab_size)
+        if tokenizer_path is None and os.path.exists(model_path_or_name):
+            candidates = [os.path.join(os.path.dirname(model_path_or_name), "tokenizer.json"),
+                          os.path.join("data", "shards", "tokenizer.json")]
+            tokenizer_path = next((path for path in candidates if os.path.isfile(path)), None)
+        self.tokenizer = (ByteFallbackBPETokenizer.load(tokenizer_path) if tokenizer_path
+                          else ByteFallbackBPETokenizer(target_vocab_size=self.model.config.vocab_size))
+        if tokenizer_path and self.tokenizer.vocab_size != self.model.config.vocab_size:
+            raise ValueError("Tokenizer vocabulary does not match checkpoint; supply its matching tokenizer_path.")
 
     def generate_stream(
         self,
@@ -164,6 +173,8 @@ class HariAI:
     def __init__(self, model_name: str = "nano", **kwargs):
         self.engine = InferenceEngine(model_path_or_name=model_name, **kwargs)
         self.creator_profile = get_creator_profile()
+        self.ollama = OllamaClient()
+        self.use_ollama = model_name in ("nano", "ollama")
 
     def ask(self, question: str) -> str:
         """Fast answer to general questions, with dynamic identity resolution."""
@@ -172,10 +183,25 @@ class HariAI:
         if identity_resp:
             return identity_resp
 
-        response = self.engine.generate(f"User: {question}\nHariAI:")
-        if not response:
-            return f"[HariAI {self.engine.model.config.d_model}d]: Explaining '{question}'."
-        return response
+        if self.use_ollama:
+            ollama_response = self.ollama.chat([
+                {"role": "system", "content": (
+                    "You are HariAI, a helpful assistant. Be accurate, clear, and candid about uncertainty. "
+                    "Do not claim that answers are verified unless a tool actually verified them."
+                )},
+                {"role": "user", "content": question},
+            ])
+            if ollama_response:
+                return ollama_response
+
+        if not self.use_ollama:
+            return self.engine.generate(f"User: {question}\nHariAI:")
+
+        return (
+            "Ollama is unavailable or has no installed chat model. HariAI Nano is an "
+            "experimental from-scratch checkpoint and is not a capable general-purpose "
+            "assistant yet. Start Ollama and set HARIAI_OLLAMA_MODEL if needed."
+        )
 
     def think(self, problem: str) -> Dict[str, str]:
         """Deliberative 5-stage reasoning loop: Analysis -> Plan -> Solve -> Verify -> Self-Correct."""

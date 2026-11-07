@@ -3,7 +3,7 @@
 **Founder & Creator:** K R Hari Prajwal  
 **GitHub:** [https://github.com/Hariprajwal](https://github.com/Hariprajwal)  
 **LinkedIn:** [https://www.linkedin.com/in/k-r-hari-prajwal-655373256/](https://www.linkedin.com/in/k-r-hari-prajwal-655373256/)  
-**Current Phase:** Phase 13 (Public Open-Source Release & Production Validation) — **ALL PHASES COMPLETE**  
+**Current Phase:** Prototype research release — general-purpose model training and production validation remain incomplete
 **Total Phases:** 14 (Phase 0 through Phase 13)  
 **Version:** v0.1.0  
 **Last Updated:** November 2026  
@@ -42,5 +42,6 @@
 - **Dream Engine:** Continual wake/sleep consolidation, modular parameter adaptation, and automatic regression rollback (<1.0% tolerance).
 - **Cluster Learning:** Federated experience synchronization with verified supremacy and audited parameter averaging.
 - **Packaging & Containers:** Docker container image, WinGet manifest, Scoop manifest, Homebrew formula, GitHub Actions CI.
-- **Custom Trained Neural LLM:** Dedicated offline checkpoint trained from scratch (`checkpoints/hari_ai_nano.pt` at 3.37 MB, INT4 quantized at 0.61 MB) with live calibrated confidence readout (`[Confidence: XX.X% | UAIA-Nano LLM]`).
+- **Prototype checkpoint:** The default training recipe creates a 128-wide, 4-layer model and runs 60 optimization steps on a small synthetic curriculum. This is an architecture/training-pipeline demonstration, not a pretrained or instruction-tuned general-purpose assistant. The confidence values are not calibrated.
+- **Local model chat:** Chat prefers an installed Ollama model when the local service is available. HariNano remains an experimental offline fallback; the Ollama connection performs inference, not training or distillation.
 - **Test Suite:** **84 automated unit tests passing (100% Green)** across all 17 test modules.

@@ -13,6 +13,15 @@ This document maintains full legal provenance, licensing classification, and com
 
 ## 2. Approved Teacher Models (For Distillation & Synthetic Traces)
 
+**Local research run, November 2026:** The Ollama Qwen 3 4B model layer used by
+`collect_teacher_arithmetic.py` has SHA-256
+`3e4cb14174460404e7a233e531675303b2fbf7749c02f91864fe311ab6344e4f`.
+Its accompanying local license layer contains Apache License 2.0. Teacher
+answers are individually checked against Python arithmetic and are recorded with
+their source and verification result. This is a small research dataset, not a
+general assessment of model quality. The locally installed Qwen 2.5 3B package
+contains a separate research-only license and was not used for this run.
+
 | Model Name | Creator | Checkpoint / Source | License | Permissible Uses in HariAI | Verification URL |
 |---|---|---|---|---|---|
 | **Qwen 2.5 Coder** | Alibaba Cloud | Qwen2.5-Coder-7B-Instruct | Apache 2.0 | Synthetic code reasoning traces, algorithm explanations, test case generation. | [https://huggingface.co/Qwen](https://huggingface.co/Qwen) |

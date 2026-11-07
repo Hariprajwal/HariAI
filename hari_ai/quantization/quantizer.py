@@ -143,7 +143,7 @@ def quantize_model(
 
 
 def save_quantized_checkpoint(
-    model: UAIANanoModel, checkpoint_path: str
+    model: UAIANanoModel, checkpoint_path: str, max_size_mb: float = 50.0
 ) -> Dict[str, Any]:
     """Serializes quantized model to disk and asserts the <= 50 MB budget constraint."""
     os.makedirs(os.path.dirname(os.path.abspath(checkpoint_path)), exist_ok=True)
@@ -158,9 +158,9 @@ def save_quantized_checkpoint(
     file_bytes = os.path.getsize(checkpoint_path)
     file_mb = file_bytes / (1024 * 1024)
 
-    assert file_mb <= 50.0, (
+    assert file_mb <= max_size_mb, (
         f"Model size violation: Exported checkpoint is {file_mb:.2f} MB, "
-        f"which exceeds the 50.0 MB hard limit!"
+        f"which exceeds the {max_size_mb:.2f} MB hard limit!"
     )
 
     return {

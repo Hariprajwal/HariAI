@@ -79,7 +79,7 @@ class TestTrainerInfrastructure(unittest.TestCase):
         # Fixed token sequence repeated
         pattern = torch.tensor([[i % vocab_size for i in range(seq_len + 1)]] * 32)
         input_ids = pattern[:, :-1]
-        labels = pattern[:, 1:]
+        labels = input_ids.clone()
 
         dataset = TensorDataset(input_ids, labels)
 
