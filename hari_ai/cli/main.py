@@ -182,9 +182,8 @@ def repl() -> None:
         _DREAM_CONTROLLER.notify_user_activity()
 
         lower = user_input.lower()
-        if lower in ["exit", "quit", "/exit", "/quit"]:
-            print("Goodbye! Have a great day!")
-            break
+        if lower in ["exit", "quit", "/exit", "/quit", ":q", "bye"]:
+            sys.exit(0)
         elif lower in ["clear", "/clear"]:
             _CHAT_ENGINE.clear_history()
             print("Conversation history reset. Ready for a new topic!\n")
