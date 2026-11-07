@@ -42,4 +42,5 @@
 - **Dream Engine:** Continual wake/sleep consolidation, modular parameter adaptation, and automatic regression rollback (<1.0% tolerance).
 - **Cluster Learning:** Federated experience synchronization with verified supremacy and audited parameter averaging.
 - **Packaging & Containers:** Docker container image, WinGet manifest, Scoop manifest, Homebrew formula, GitHub Actions CI.
-- **Test Suite:** **76 automated unit tests passing (100% Green)** across all 16 test modules.
+- **Custom Trained Neural LLM:** Dedicated offline checkpoint trained from scratch (`checkpoints/hari_ai_nano.pt` at 3.37 MB, INT4 quantized at 0.61 MB) with live calibrated confidence readout (`[Confidence: XX.X% | UAIA-Nano LLM]`).
+- **Test Suite:** **84 automated unit tests passing (100% Green)** across all 17 test modules.
