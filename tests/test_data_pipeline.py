@@ -17,7 +17,7 @@ class TestDataPipeline(unittest.TestCase):
         doc1 = "def quicksort(arr): return arr if len(arr) <= 1 else quicksort([x for x in arr if x < arr[0]])"
         doc2 = "def quicksort(arr): return arr if len(arr) <= 1 else quicksort([x for x in arr if x < arr[0]])"  # exact duplicate
         doc3 = "def quicksort(arr): return arr if len(arr) <= 1 else quicksort([x for x in arr if x <= arr[0]])"  # near identical variant
-        doc4 = "Hari Prajwal was born on 23 December 2004 in Karnataka India."  # completely different
+        doc4 = "A distinct document about planets, oceans, and weather."  # completely different
 
         # Index doc1
         lsh.index(doc1)

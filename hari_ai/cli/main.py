@@ -61,7 +61,6 @@ def get_user_input() -> str:
 def cmd_info() -> None:
     """Displays HariAI creator profile and identity details."""
     profile = get_creator_profile()
-    current_age = profile.calculate_current_age()
 
     print("\n" + "=" * 60)
     print(" HARIAI CREATOR PROFILE")
@@ -69,10 +68,8 @@ def cmd_info() -> None:
     print(f" Creator:        {profile.name}")
     print(f" Origin:         {profile.origin_region}")
     print(f" Creation Age:   {profile.creation_age} years old (At creation)")
-    print(f" Current Age:    {current_age} years old (Dynamically calculated)")
     print(f" Statement:      \"{profile.official_statement}\"")
     print(f" GitHub:         {profile.github_url}")
-    print(f" LinkedIn:       {profile.linkedin_url}")
     print(f" Target Model:   Under 35 MB (Complete Neural Weights)")
     print("=" * 60 + "\n")
 

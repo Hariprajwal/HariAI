@@ -109,11 +109,10 @@ for the implemented experiment and remaining work.
 ## License and contact
 
 The current software is available under the [HariAI Noncommercial License](LICENSE).
-Commercial use requires a separate written agreement with K R Hari Prajwal:
-**hariprajwal77@gmail.com**. The project is source-available; the commercial
+Commercial use requires a separate written agreement with K R Hari Prajwal;
+contact the creator through [GitHub](https://github.com/Hariprajwal). The project is source-available; the commercial
 restriction means it is not open source under the OSI definition. Previous
 versions were offered under Apache 2.0 and earlier license grants are not revoked.
 Third-party models, datasets and dependencies have their own terms.
 
-Created by [K R Hari Prajwal](https://github.com/Hariprajwal) ·
-[LinkedIn](https://www.linkedin.com/in/k-r-hari-prajwal-655373256/)
+Created by [K R Hari Prajwal](https://github.com/Hariprajwal).

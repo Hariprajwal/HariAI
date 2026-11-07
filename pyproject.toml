@@ -7,7 +7,7 @@ name = "hari-ai"
 version = "0.1.0"
 description = "HariAI: compact language model research and experimental continual learning"
 authors = [
-    { name = "K R Hari Prajwal", email = "hariprajwal77@gmail.com" }
+    { name = "K R Hari Prajwal" }
 ]
 readme = "README.md"
 requires-python = ">=3.9"
@@ -24,7 +24,6 @@ classifiers = [
 
 [project.urls]
 Homepage = "https://github.com/Hariprajwal"
-LinkedIn = "https://www.linkedin.com/in/k-r-hari-prajwal-655373256/"
 
 [project.scripts]
 hari = "hari_ai.cli.main:main"

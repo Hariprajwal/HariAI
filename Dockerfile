@@ -1,7 +1,7 @@
 # HariAI Minimal Container Image
 FROM python:3.11-slim
 
-LABEL maintainer="K R Hari Prajwal <hariprajwal77@gmail.com>"
+LABEL maintainer="K R Hari Prajwal"
 LABEL description="HariAI: Compact, open-weight AI system under 50 MB"
 LABEL org.opencontainers.image.source="https://github.com/Hariprajwal"
 
