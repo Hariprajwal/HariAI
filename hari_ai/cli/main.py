@@ -41,12 +41,18 @@ _CHAT_ENGINE = ChatEngine(memory_manager=_MEMORY_MANAGER)
 
 def print_banner() -> None:
     print(BANNER)
-    print("Hello! I'm HariAI, your compact intelligent assistant.")
-    print("How can I help you today?\n")
-    print("-" * 65)
-    print(" // Type your query or chat naturally below (just like Gemma/ChatGPT)")
-    print(" // Special commands: /think, /decide, /code, /dream, /clear, /info, /exit")
-    print("-" * 65 + "\n")
+
+
+def get_user_input() -> str:
+    """Reads user input with a gray placeholder that vanishes on typing (like Ollama)."""
+    try:
+        from prompt_toolkit import prompt
+        from prompt_toolkit.formatted_text import HTML
+
+        placeholder = HTML('<style color="#777777">Send a message (/? for help)</style>')
+        return prompt("hari> ", placeholder=placeholder).strip()
+    except Exception:
+        return input("hari> ").strip()
 
 
 def cmd_info() -> None:
@@ -160,13 +166,12 @@ def cmd_dream(args: List[str]) -> None:
 
 
 def repl() -> None:
-    """Interactive conversational REPL."""
+    """Interactive conversational REPL with Ollama-style vanishing placeholder."""
     print_banner()
-    print("// Type your query here:\n")
 
     while True:
         try:
-            user_input = input("hari> ").strip()
+            user_input = get_user_input()
         except (KeyboardInterrupt, EOFError):
             print("\nGoodbye!")
             break
@@ -185,17 +190,16 @@ def repl() -> None:
             print("Conversation history reset. Ready for a new topic!\n")
         elif lower in ["info", "/info"]:
             cmd_info()
-        elif lower in ["help", "/help", "hari help"]:
-            print("\nHariAI Interactive Commands:")
-            print("  /think <problem>   - Deliberate reasoning mode (<|thought|>)")
-            print("  /decide <problem>  - Open-JEV typed decision readout")
-            print("  /code <task>       - Verifiable code generation")
-            print("  /dream [now|status]- Trigger Dream Engine sleep consolidation")
-            print("  /memory [status]   - Inspect hierarchical memory levels")
-            print("  /clear             - Reset multi-turn conversation context")
-            print("  /info              - Display Creator Profile (K R Hari Prajwal)")
-            print("  /exit              - Exit the chat\n")
-            print("  Or simply type ANY question to chat naturally!\n")
+        elif lower in ["/?", "/help", "help", "hari help"]:
+            print("\nAvailable Commands:")
+            print("  /think <problem>    - Deliberate reasoning mode (<|thought|>)")
+            print("  /decide <situation> - Open-JEV typed single-forward-pass decision evaluation")
+            print("  /code <task>        - Verifiable code generation with assertions")
+            print("  /dream [now|status] - Trigger Dream Engine sleep consolidation")
+            print("  /memory [status]    - Inspect hierarchical memory levels")
+            print("  /clear              - Reset multi-turn conversation context")
+            print("  /info               - Display Creator Profile (K R Hari Prajwal)")
+            print("  /exit               - Exit the chat session\n")
         elif lower.startswith("/think ") or lower.startswith("think "):
             p = user_input.split(" ", 1)[1]
             cmd_think(p)
