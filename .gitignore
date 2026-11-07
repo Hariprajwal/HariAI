@@ -26,3 +26,6 @@ checkpoints/
 .idea/
 *.swp
 
+
+# Data shards
+data/
