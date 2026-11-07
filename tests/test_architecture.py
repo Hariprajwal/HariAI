@@ -102,12 +102,14 @@ class TestUAIANanoArchitecture(unittest.TestCase):
         labels = input_ids.clone()
         action_targets = torch.randint(0, self.micro_config.n_actions, (batch_size,))
         conf_targets = torch.tensor([1.0, 0.0])
+        perm_targets = torch.tensor([0.0, 1.0])
 
         output = model(
             input_ids=input_ids,
             labels=labels,
             action_targets=action_targets,
             confidence_targets=conf_targets,
+            permission_targets=perm_targets,
         )
 
         # Shape assertions
@@ -120,12 +122,14 @@ class TestUAIANanoArchitecture(unittest.TestCase):
             (batch_size, self.micro_config.n_actions),
         )
         self.assertEqual(output["confidence"].shape, (batch_size, 1))
+        self.assertEqual(output["permission_required"].shape, (batch_size, 1))
 
         # Loss assertions
         self.assertIsNotNone(output["loss"])
         self.assertIsNotNone(output["lm_loss"])
         self.assertIsNotNone(output["action_loss"])
         self.assertIsNotNone(output["confidence_loss"])
+        self.assertIsNotNone(output["permission_loss"])
 
         # Backward pass gradient verification
         output["loss"].backward()
@@ -165,3 +169,4 @@ class TestUAIANanoArchitecture(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+

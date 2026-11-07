@@ -71,3 +71,16 @@ This document tracks all formal architectural and technical decisions made durin
 - **Context:** An AI model must continually improve from its mistakes and user interactions, but running gradient optimization during live chat causes intolerable latency, battery drain, and instability.
 - **Decision:** Implement a dual-state lifecycle (Wake State for inference; Sleep State for consolidation). When the machine is idle, plugged into power, or explicitly commanded (`hari dream now`), the system consolidates memory, synthesizes practice problems, trains candidate LoRA adapters, runs permanent regression tests, and promotes or rolls back the candidate.
 - **Consequences:** Ensures zero latency overhead during active usage while enabling autonomous continuous capability improvement. Requires preemption handlers so user input instantly resumes interactive mode within 50 ms.
+
+
+---
+
+## ADR-0008: Integration of Typed Decision Heads Inspired by Open-JEV
+- **Status:** APPROVED
+- **Date:** November 2026
+- **Context:** Language models that rely exclusively on autoregressive text generation to make control choices suffer from syntax formatting failures, slow token generation latency, and poorly calibrated confidence. `kyegomez/open-jev` demonstrates a fast, typed "System One" decision architecture licensed under Apache 2.0.
+- **Decision:** Integrate Jev-style typed readouts directly into HariAI's Decision Engine:
+  1. `Choice`: Categorical action selection over discrete options (e.g. `[retry, debug, stop, branch]`).
+  2. `Score`: Calibrated continuous scalar in $[0, 1]$ measuring uncertainty or reward expectation.
+  3. `Noul`: Binary classification head for critical gating (e.g. requiring human permission or terminating execution).
+- **Consequences:** Decisions are evaluated in a single forward pass over cached hidden states without generating multi-token JSON strings.

@@ -1,8 +1,14 @@
-"""Complete UAIA-Nano Transformer model with Dual Language and Decision Heads."""
+"""Complete UAIA-Nano Transformer model with Dual Language and Decision Heads.
+
+Enhanced with Jev-style typed decision readouts (Choice, Score, Noul):
+- Choice: Categorical action selection logits over discrete options
+- Score: Continuous calibrated confidence / uncertainty score in [0, 1]
+- Noul: Binary permission / termination gate in [0, 1] (e.g. human approval required)
+"""
 
 from __future__ import annotations
 
-from typing import Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 import torch
 import torch.nn as nn
@@ -48,18 +54,23 @@ class UAIATransformerBlock(nn.Module):
 
 
 class StructuredDecisionHead(nn.Module):
-    """Dedicated Decision Engine head producing calibrated action probabilities and confidence."""
+    """Dedicated Decision Engine head producing Jev-style typed readouts (Choice, Score, Noul)."""
 
     def __init__(self, config: UAIANanoConfig):
         super().__init__()
+        # Choice: Categorical action selection
         self.action_proj = nn.Linear(config.d_model, config.n_actions, bias=False)
+        # Score: Continuous calibrated confidence
         self.confidence_proj = nn.Linear(config.d_model, 1, bias=True)
+        # Noul: Binary permission / risk gating (requires human approval)
+        self.permission_proj = nn.Linear(config.d_model, 1, bias=True)
 
-    def forward(self, h: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
-        # h: [batch_size, d_model] (pooled representation or last token)
+    def forward(self, h: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+        # h: [batch_size, d_model]
         action_logits = self.action_proj(h)
         confidence = torch.sigmoid(self.confidence_proj(h))
-        return action_logits, confidence
+        permission_required = torch.sigmoid(self.permission_proj(h))
+        return action_logits, confidence, permission_required
 
 
 class UAIANanoModel(nn.Module):
@@ -89,7 +100,7 @@ class UAIANanoModel(nn.Module):
         # Final RMS Normalization
         self.final_norm = RMSNorm(self.config.d_model, eps=self.config.norm_eps)
 
-        # Dual Heads
+        # Decision Head (Choice, Score, Noul)
         self.decision_head = StructuredDecisionHead(self.config)
 
         # Weight tying or separate head
@@ -147,6 +158,7 @@ class UAIANanoModel(nn.Module):
         labels: Optional[torch.Tensor] = None,
         action_targets: Optional[torch.Tensor] = None,
         confidence_targets: Optional[torch.Tensor] = None,
+        permission_targets: Optional[torch.Tensor] = None,
         kv_caches: Optional[List[Tuple[torch.Tensor, torch.Tensor]]] = None,
         start_pos: int = 0,
     ) -> Dict[str, Any]:
@@ -179,18 +191,18 @@ class UAIANanoModel(nn.Module):
         # 1. Language Head Logits
         lm_logits = self.get_lm_logits(h)
 
-        # 2. Decision Head Logits (evaluate on last token of sequence)
+        # 2. Decision Head (Choice, Score, Noul evaluated on last token)
         last_hidden = h[:, -1, :]
-        action_logits, confidence = self.decision_head(last_hidden)
+        action_logits, confidence, permission_required = self.decision_head(last_hidden)
 
         # Loss calculation
         total_loss = None
         lm_loss = None
         action_loss = None
         conf_loss = None
+        perm_loss = None
 
         if labels is not None:
-            # Shift tokens for next-token prediction
             shift_logits = lm_logits[..., :-1, :].contiguous()
             shift_labels = labels[..., 1:].contiguous()
             lm_loss = F.cross_entropy(
@@ -214,14 +226,24 @@ class UAIANanoModel(nn.Module):
                 total_loss + 0.1 * conf_loss if total_loss is not None else conf_loss
             )
 
+        if permission_targets is not None:
+            perm_loss = F.binary_cross_entropy(
+                permission_required.squeeze(-1), permission_targets.float()
+            )
+            total_loss = (
+                total_loss + 0.1 * perm_loss if total_loss is not None else perm_loss
+            )
+
         return {
             "loss": total_loss,
             "lm_loss": lm_loss,
             "action_loss": action_loss,
             "confidence_loss": conf_loss,
+            "permission_loss": perm_loss,
             "logits": lm_logits,
             "action_logits": action_logits,
             "confidence": confidence,
+            "permission_required": permission_required,
             "kv_caches": new_kv_caches,
         }
 
@@ -239,7 +261,6 @@ class UAIANanoModel(nn.Module):
         cur_tokens = prompt_ids
         kv_caches = None
 
-        # Prefill prompt
         out = self.forward(cur_tokens, kv_caches=None, start_pos=0)
         kv_caches = out["kv_caches"]
         next_token_logits = out["logits"][:, -1, :]
@@ -259,7 +280,6 @@ class UAIANanoModel(nn.Module):
 
             generated = torch.cat([generated, next_token], dim=1)
 
-            # Single step generation using KV cache
             out = self.forward(
                 next_token,
                 kv_caches=kv_caches,
@@ -269,4 +289,3 @@ class UAIANanoModel(nn.Module):
             next_token_logits = out["logits"][:, -1, :]
 
         return generated
-

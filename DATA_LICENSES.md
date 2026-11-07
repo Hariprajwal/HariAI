@@ -42,3 +42,6 @@ This document maintains full legal provenance, licensing classification, and com
 | **OpenAI ChatGPT / GPT-4 Direct Outputs** | OpenAI | Terms of Service prohibit using outputs to train competing models. |
 | **Any CC-BY-NC Datasets** | Various | Non-commercial restriction conflicts with HariAI's open-source commercial viability. |
 
+
+
+| **Open-JEV (Kye Gomez / TypeSafe AI Concept)** | Kye Gomez | GitHub Repository | Apache 2.0 | Architectural reference & typed decision readout heads (`Choice`, `Score`, `Noul`). | [https://github.com/kyegomez/open-jev](https://github.com/kyegomez/open-jev) |
