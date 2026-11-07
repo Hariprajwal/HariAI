@@ -249,3 +249,4 @@ class ByteFallbackBPETokenizer:
             for item in data["merges"]
         }
         return tokenizer
+
