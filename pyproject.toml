@@ -1,0 +1,33 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "hari-ai"
+version = "0.1.0"
+description = "HariAI: compact language model research and experimental continual learning"
+authors = [
+    { name = "K R Hari Prajwal" }
+]
+readme = "README.md"
+requires-python = ">=3.9"
+dependencies = [
+    "torch>=2.0.0",
+    "numpy>=1.20.0",
+]
+keywords = ["ai", "transformer", "slm", "small-language-model", "decision-engine", "edge-ai"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Operating System :: OS Independent",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+
+[project.urls]
+Homepage = "https://github.com/Hariprajwal"
+
+[project.scripts]
+hari = "hari_ai.cli.main:main"
+
+[tool.setuptools.packages.find]
+include = ["hari_ai*"]
+

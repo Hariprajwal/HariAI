@@ -1,0 +1,8 @@
+{"domain":"instruction", "prompt":"Reply with exactly the word blue.", "answers":["blue"]}
+{"domain":"instruction", "prompt":"Reply with exactly the word yes.", "answers":["yes"]}
+{"domain":"arithmetic", "prompt":"What is 7 + 5? Answer with only the integer.", "answers":["12"]}
+{"domain":"arithmetic", "prompt":"What is 30 - 8? Answer with only the integer.", "answers":["22"]}
+{"domain":"knowledge", "prompt":"What planet do we live on? Answer in one word.", "answers":["earth"]}
+{"domain":"knowledge", "prompt":"How many days are in a week? Answer with only the integer.", "answers":["7"]}
+{"domain":"reasoning", "prompt":"Which is larger: 3 or 9? Answer with only the integer.", "answers":["9"]}
+{"domain":"reasoning", "prompt":"A red ball and a blue ball are in a box. How many balls are there? Answer with only the integer.", "answers":["2"]}

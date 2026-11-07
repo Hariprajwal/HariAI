@@ -1,0 +1,21 @@
+{
+    "version": "0.1.0",
+    "description": "HariAI: Original, open-weight, extremely small AI system under 50 MB.",
+    "homepage": "https://github.com/Hariprajwal",
+    "license": "Apache-2.0",
+    "architecture": {
+        "64bit": {
+            "url": "https://github.com/Hariprajwal/HariAI/releases/download/v0.1.0/hari-win64.zip",
+            "bin": "hari.exe"
+        }
+    },
+    "checkver": "github",
+    "autoupdate": {
+        "architecture": {
+            "64bit": {
+                "url": "https://github.com/Hariprajwal/HariAI/releases/download/v$version/hari-win64.zip"
+            }
+        }
+    }
+}
+
