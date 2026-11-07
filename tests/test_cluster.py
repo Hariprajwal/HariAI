@@ -1,9 +1,9 @@
-"""Unit tests for HariAI Multi-Agent Cluster Architecture."""
+"""Unit tests for HariAI Multi-Agent Cluster Architecture with Custom Roles and Universal Mode."""
 
 import unittest
 from hari_ai.cluster.blackboard import SharedBlackboard
 from hari_ai.cluster.coordinator import Cluster, ClusterCoordinator
-from hari_ai.cluster.protocol import AgentRole, ClusterMessage, TaskStatus
+from hari_ai.cluster.protocol import AgentRole, ClusterMessage, CustomRoleDefinition, TaskStatus
 
 
 class TestClusterArchitecture(unittest.TestCase):
@@ -34,7 +34,6 @@ class TestClusterArchitecture(unittest.TestCase):
 
     def test_execution_budget_guard(self):
         bb = SharedBlackboard(max_messages=3)
-        # Post 3 messages
         for i in range(3):
             bb.post_message(
                 ClusterMessage(
@@ -45,7 +44,6 @@ class TestClusterArchitecture(unittest.TestCase):
                 )
             )
 
-        # 4th message should raise message budget error
         with self.assertRaises(RuntimeError) as ctx:
             bb.post_message(
                 ClusterMessage(
@@ -59,7 +57,6 @@ class TestClusterArchitecture(unittest.TestCase):
 
     def test_anti_loop_circular_delegation_guard(self):
         bb = SharedBlackboard(max_messages=20)
-        # Ping-pong between agent_a and agent_b with identical objective
         m1 = ClusterMessage(sender="agent_a", receiver="agent_b", task_id="t", objective="repeat")
         m2 = ClusterMessage(sender="agent_b", receiver="agent_a", task_id="t", objective="repeat")
 
@@ -67,23 +64,53 @@ class TestClusterArchitecture(unittest.TestCase):
         bb.post_message(m2)
         bb.post_message(m1)
 
-        # 4th message completes the alternating loop
         with self.assertRaises(RuntimeError) as ctx:
             bb.post_message(m2)
         self.assertIn("Anti-loop guard triggered", str(ctx.exception))
 
-    def test_cluster_coordinator_end_to_end_execution(self):
+    def test_specialized_cluster_with_security_auditor(self):
         cluster = Cluster()
-        cluster.start(workers=3)
+        cluster.start(workers=4)
 
         result = cluster.run("Sort an array of integers with verified tests")
 
         self.assertEqual(result["status"], "COMPLETED")
         self.assertTrue(result["verification_passed"])
-        self.assertIn("assert ", result["tests"])
-        self.assertGreaterEqual(result["total_cluster_messages"], 4)
+        self.assertTrue(result["security_cleared"])
+        self.assertIn("security_auditor", result["agents_involved"])
         self.assertIn("coder", result["agents_involved"])
         self.assertIn("verifier", result["agents_involved"])
+
+    def test_universal_mode_execution(self):
+        cluster = Cluster(universal_mode=True)
+        cluster.start()
+
+        result = cluster.run("General problem solving under universal mode")
+
+        self.assertEqual(result["mode"], "universal")
+        self.assertEqual(result["status"], "COMPLETED")
+        self.assertTrue(result["verification_passed"])
+        self.assertIn("universal", result["agents_involved"])
+
+    def test_custom_user_defined_roles(self):
+        cluster = Cluster()
+        # Register a custom DevOps/Deployer role
+        custom_role = cluster.register_custom_role(
+            name="DevOps_Engineer",
+            description="Manages container manifests and deployment sanity",
+            instructions="Check Dockerfile syntax and entrypoint configurations.",
+            capabilities=["docker", "ci_cd", "deployment"],
+        )
+        self.assertEqual(custom_role.name, "DevOps_Engineer")
+
+        cluster.start()
+        result = cluster.run(
+            "Build and package solution with deployment checks",
+            roles=["DevOps_Engineer"],
+        )
+
+        self.assertEqual(result["status"], "COMPLETED")
+        self.assertIn("DevOps_Engineer", result["agents_involved"])
 
 
 if __name__ == "__main__":

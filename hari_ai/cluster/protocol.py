@@ -1,4 +1,10 @@
-"""Inter-Agent Communication Protocol for HariAI Cluster."""
+"""Inter-Agent Communication Protocol for HariAI Cluster.
+
+Supports:
+- Predefined specialized roles: Coordinator, Researcher, Coder, Reasoner, Decision Specialist, Verifier, Security Auditor
+- Universal Mode: Adaptive generalist worker executing end-to-end tasks
+- Custom User-Defined Roles: Runtime registration of dynamic domain-specific roles
+"""
 
 from __future__ import annotations
 
@@ -16,6 +22,20 @@ class AgentRole(str, enum.Enum):
     REASONER = "reasoner"
     DECISION_SPECIALIST = "decision_specialist"
     VERIFIER = "verifier"
+    SECURITY_AUDITOR = "security_auditor"  # New security and permission boundary specialist
+    UNIVERSAL = "universal"  # Universal generalist mode
+    CUSTOM = "custom"  # User-defined dynamic role
+
+
+@dataclass
+class CustomRoleDefinition:
+    """User-defined custom agent role specification."""
+
+    name: str
+    description: str
+    instructions: str
+    capabilities: List[str] = field(default_factory=list)
+    metadata: Dict[str, Any] = field(default_factory=dict)
 
 
 class TaskStatus(str, enum.Enum):
@@ -62,4 +82,3 @@ class ClusterMessage:
     @classmethod
     def from_json(cls, json_str: str) -> "ClusterMessage":
         return cls.from_dict(json.loads(json_str))
-
