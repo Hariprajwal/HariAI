@@ -128,3 +128,4 @@ class MinHashLSH:
                 self.index(text)
                 clean_corpus.append(text)
         return clean_corpus
+

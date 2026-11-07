@@ -197,3 +197,4 @@ class SyntheticCurriculumGenerator:
             else:
                 samples.append(self.generate_decision_sample())
         return samples
+
