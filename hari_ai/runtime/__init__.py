@@ -1,5 +1,6 @@
 """HariAI Native Inference Runtime Package."""
 
+from hari_ai.runtime.chat import ChatEngine, ChatMessage
 from hari_ai.runtime.engine import (
     GenerationConfig,
     HardwareBackend,
@@ -14,5 +15,7 @@ __all__ = [
     "detect_best_hardware",
     "InferenceEngine",
     "HariAI",
+    "ChatEngine",
+    "ChatMessage",
 ]
 

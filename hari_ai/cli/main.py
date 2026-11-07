@@ -17,6 +17,7 @@ from typing import List, Optional
 from hari_ai.dream.controller import DreamEngineController, SleepTrigger
 from hari_ai.memory.hierarchy import EpisodicEntry, HierarchicalMemoryManager
 from hari_ai.profile.creator import get_creator_profile
+from hari_ai.runtime.chat import ChatEngine
 
 
 BANNER = r"""
@@ -29,18 +30,23 @@ BANNER = r"""
         Tiny in size.
         Big in intelligence.
 
-HariAI v0.1
+HariAI v0.1.0
 """
 
-# Global memory and dream controller singletons for local session
+# Global memory, dream controller, and conversational chat engine singletons for local session
 _MEMORY_MANAGER = HierarchicalMemoryManager()
 _DREAM_CONTROLLER = DreamEngineController(memory_manager=_MEMORY_MANAGER)
+_CHAT_ENGINE = ChatEngine(memory_manager=_MEMORY_MANAGER)
 
 
 def print_banner() -> None:
     print(BANNER)
-    print("Hello! I'm HariAI.")
+    print("Hello! I'm HariAI, your compact intelligent assistant.")
     print("How can I help you today?\n")
+    print("-" * 65)
+    print(" // Type your query or chat naturally below (just like Gemma/ChatGPT)")
+    print(" // Special commands: /think, /decide, /code, /dream, /clear, /info, /exit")
+    print("-" * 65 + "\n")
 
 
 def cmd_info() -> None:
@@ -66,27 +72,16 @@ def cmd_version() -> None:
     print("HariAI version 0.1.0 (UAIA-Nano Architecture, <50MB Target)")
 
 
-def cmd_ask(prompt: str) -> None:
-    """Fast single-turn language query."""
-    profile = get_creator_profile()
-    # Check if identity question
-    identity_answer = profile.answer_identity_question(prompt)
-    if identity_answer:
-        response = identity_answer
+def cmd_ask(prompt: str, stream: bool = False) -> None:
+    """Conversational language query powered by the ChatEngine."""
+    if stream:
+        for chunk in _CHAT_ENGINE.chat_stream(prompt):
+            sys.stdout.write(chunk)
+            sys.stdout.flush()
+        sys.stdout.write("\n")
     else:
-        response = f"[HariAI Nano]: Explaining '{prompt}' with compact procedural intelligence."
-
-    _MEMORY_MANAGER.episodic.record(
-        EpisodicEntry(
-            entry_id=f"ask-{int(time.time())}",
-            timestamp=time.time(),
-            user_input=prompt,
-            assistant_output=response,
-            action_taken="ask",
-            was_successful=True,
-        )
-    )
-    print(response)
+        response = "".join(list(_CHAT_ENGINE.chat_stream(prompt)))
+        print(response)
 
 
 def cmd_think(prompt: str) -> None:
@@ -165,8 +160,9 @@ def cmd_dream(args: List[str]) -> None:
 
 
 def repl() -> None:
-    """Interactive command REPL."""
+    """Interactive conversational REPL."""
     print_banner()
+    print("// Type your query here:\n")
 
     while True:
         try:
@@ -180,27 +176,49 @@ def repl() -> None:
 
         _DREAM_CONTROLLER.notify_user_activity()
 
-        if user_input.lower() in ["exit", "quit", "/exit", "/quit"]:
-            print("Goodbye!")
+        lower = user_input.lower()
+        if lower in ["exit", "quit", "/exit", "/quit"]:
+            print("Goodbye! Have a great day!")
             break
-        elif user_input.lower() in ["info", "/info"]:
+        elif lower in ["clear", "/clear"]:
+            _CHAT_ENGINE.clear_history()
+            print("Conversation history reset. Ready for a new topic!\n")
+        elif lower in ["info", "/info"]:
             cmd_info()
-        elif user_input.lower() in ["help", "/help", "hari help"]:
-            print("Commands: ask <query>, think <problem>, decide <situation>, code <task>, memory <cmd>, dream <cmd>, info, exit")
-        elif user_input.lower().startswith("ask "):
-            cmd_ask(user_input[4:].strip())
-        elif user_input.lower().startswith("think "):
-            cmd_think(user_input[6:].strip())
-        elif user_input.lower().startswith("decide "):
-            cmd_decide(user_input[7:].strip())
-        elif user_input.lower().startswith("code "):
-            cmd_code(user_input[5:].strip())
-        elif user_input.lower().startswith("dream"):
-            cmd_dream(user_input.split()[1:])
-        elif user_input.lower().startswith("memory"):
-            cmd_memory(user_input.split()[1:])
+        elif lower in ["help", "/help", "hari help"]:
+            print("\nHariAI Interactive Commands:")
+            print("  /think <problem>   - Deliberate reasoning mode (<|thought|>)")
+            print("  /decide <problem>  - Open-JEV typed decision readout")
+            print("  /code <task>       - Verifiable code generation")
+            print("  /dream [now|status]- Trigger Dream Engine sleep consolidation")
+            print("  /memory [status]   - Inspect hierarchical memory levels")
+            print("  /clear             - Reset multi-turn conversation context")
+            print("  /info              - Display Creator Profile (K R Hari Prajwal)")
+            print("  /exit              - Exit the chat\n")
+            print("  Or simply type ANY question to chat naturally!\n")
+        elif lower.startswith("/think ") or lower.startswith("think "):
+            p = user_input.split(" ", 1)[1]
+            cmd_think(p)
+        elif lower.startswith("/decide ") or lower.startswith("decide "):
+            p = user_input.split(" ", 1)[1]
+            cmd_decide(p)
+        elif lower.startswith("/code ") or lower.startswith("code "):
+            p = user_input.split(" ", 1)[1]
+            cmd_code(p)
+        elif lower.startswith("/dream") or lower.startswith("dream"):
+            parts = user_input.split()
+            cmd_dream(parts[1:] if len(parts) > 1 else [])
+        elif lower.startswith("/memory") or lower.startswith("memory"):
+            parts = user_input.split()
+            cmd_memory(parts[1:] if len(parts) > 1 else [])
+        elif lower.startswith("/ask ") or lower.startswith("ask "):
+            p = user_input.split(" ", 1)[1]
+            cmd_ask(p, stream=True)
+            print()
         else:
-            cmd_ask(user_input)
+            # Full streaming conversational dialogue
+            cmd_ask(user_input, stream=True)
+            print()
 
 
 def main():
