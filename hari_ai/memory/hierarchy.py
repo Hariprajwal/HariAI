@@ -145,3 +145,4 @@ class HierarchicalMemoryManager:
             "semantic_facts_count": len(self.semantic.facts),
             "procedural_recipes_count": len(self.procedural.recipes),
         }
+

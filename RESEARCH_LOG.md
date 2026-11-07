@@ -64,3 +64,18 @@ This document records research investigations, hypothesis validations, experimen
 
 - **Synthesis for HariAI:** 
   The optimal approach for HariAI Nano is a **hybrid of Decoupled Sleep Consolidation (Google Sleep / Sleep-Time Compute), Replay Buffering, and Modular LoRA Parameter Updates**. Base weights are frozen; sleep updates train compact low-rank adapters verified by deterministic regression benchmarks before promotion.
+
+
+---
+
+## Log Entry 005: Lean 4 Formal Verification & BitNet.cpp Integration
+- **Date:** November 2026
+- **Status:** COMPLETED
+- **Topic:** Lean 4 Formal Mathematical Verification (AlphaProof / LeanDojo) & Ternary CPU Execution (BitNet.cpp).
+- **Literature Findings (2024-2025 SOTA):**
+  1. **Lean 4 as the Antidote to Hallucination (DeepMind AlphaProof, 2024):** AlphaProof achieved IMO silver-medal performance by translating natural-language math into Lean 4 formal statements and searching for proof tactics verified by the trusted Lean kernel. The Lean type checker gives an absolute binary verification: a theorem is either formally valid or rejected with exact error line numbers.
+  2. **LeanDojo & ReProver (Caltech, NeurIPS):** Proved that small language models (SLMs) can effectively interact with Lean 4 and Mathlib4 environments for auto-formalization and premise selection without requiring massive compute clusters.
+  3. **BitNet b1.58 & bitnet.cpp (Microsoft Research, 2024-2025):** The `bitnet.cpp` framework demonstrates that ternary weights $\{-1, 0, +1\}$ replace floating-point matrix multiplications with CPU integer addition/subtraction. Utilizing AVX2/AVX-512 kernels on modern processors (such as the AMD Ryzen 7 5800H), ternary inference delivers 2x-4x speedups and fits $5\times$ more parameters into a $50\text{ MB}$ budget.
+- **Architectural Integration for HariAI:**
+  - **Formal Verification Engine:** In Phase 4 & Phase 5, incorporate Lean 4 syntax and formal tactic verification into the reasoning loop. For verifiable math and algorithmic logic, HariAI generates formal specifications evaluated by deterministic compilers and formal checkers rather than relying on ungrounded verbal reasoning.
+  - **Ternary Inference Path:** Phase 6 and Phase 7 will support the BitNet ternary layout ($1.58$ bits/param), enabling a $150\text{M}-240\text{M}$ parameter model to fit inside the $50\text{ MB}$ download budget.

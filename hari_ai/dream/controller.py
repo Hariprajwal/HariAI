@@ -172,3 +172,4 @@ class DreamEngineController:
 
         self.sleep_cycle_history.append(result)
         return result
+

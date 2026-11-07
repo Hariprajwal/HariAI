@@ -209,3 +209,44 @@ At sequence position $t$, the final hidden vector $\mathbf{h}_t \in \mathbb{R}^{
 | **Total Base Weights + Adapter** | — | **46,564,352** | **93.11 MB** | **26.09 MB** |
 
 > **Size Feasibility:** Total weights remain at **$\approx 26.1\text{ MB}$** at INT4, giving **$23.9\text{ MB}$ of remaining budget** under the $50\text{ MB}$ ceiling for future specialist adapters.
+
+
+---
+
+## 7. Formal Verification Engine: Lean 4 & Symbolic Grounding
+
+HariAI incorporates a formal verification subsystem inspired by DeepMind's **AlphaProof** and Caltech's **LeanDojo**:
+
+```
++-----------------------------------------------------------------------------------------+
+|                                    NATURAL PROBLEM                                      |
+| Example: "Prove that the sum of the first n positive integers is n(n+1)/2"             |
++-----------------------------------------------------------------------------------------+
+                                             |
+                                             v
++-----------------------------------------------------------------------------------------+
+|                  HARIAI NANO REASONING & AUTO-FORMALIZATION                             |
+| Generates Lean 4 Theorem Statement and Tactic Sequence:                                 |
+| theorem sum_first_n (n : Nat) : sum_n n = (n * (n + 1)) / 2 := by ...                 |
++-----------------------------------------------------------------------------------------+
+                                             |
+                                             v
++-----------------------------------------------------------------------------------------+
+|                             LEAN 4 TRUSTED PROOF KERNEL                                 |
+| Mechanically verifies syntax, type correctness, and inductive step.                     |
+| Output: [ACCEPTED: Infallible Binary Proof] OR [ERROR: Diagnostic at Tactic step k]     |
++-----------------------------------------------------------------------------------------+
+                                             |
+                                             v
++-----------------------------------------------------------------------------------------+
+|                         VERIFIABLE REWARD & SELF-CORRECTION                             |
+| - If Accepted: Yields +1.0 deterministic reward; promoted to Level 4 Procedural Memory  |
+| - If Error: Ingests compiler trace; passes back to Dream Engine for sleep practice     |
++-----------------------------------------------------------------------------------------+
+```
+
+### 7.1 Elimination of Reasoning Hallucination
+Rather than generating conversational math where small errors accumulate without detection, HariAI's verification engine couples:
+1. **Autoformalization:** Translating informal prompts into formal specifications (Python assertions, shell checks, Lean 4 tactics).
+2. **Deterministic Kernel Evaluation:** Relying on exact compilers (Python runtime, GCC/Clang, Lean 4 kernel) to validate answers.
+3. **Calibrated Confidence:** The decision head outputs a confidence score $c \in [0, 1]$ directly conditioned on whether formal verification succeeded.
