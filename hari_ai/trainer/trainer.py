@@ -224,3 +224,7 @@ class UAIATrainer:
         self.scheduler.step(self.global_step)
         print(f"Successfully resumed checkpoint from {checkpoint_path} at step {self.global_step}")
 
+
+HariNanoTrainer = UAIATrainer
+
+

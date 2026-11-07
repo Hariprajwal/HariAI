@@ -48,6 +48,28 @@ class TestHariCLI(unittest.TestCase):
         self.assertIn("HariAI Dream Engine", proc.stdout)
         self.assertIn("Dream cycle completed", proc.stdout)
 
+    def test_cli_think_command(self):
+        proc = subprocess.run(
+            [sys.executable, "-m", "hari_ai.cli", "think", "Sort array in O(n log n)"],
+            capture_output=True,
+            text=True,
+        )
+        self.assertEqual(proc.returncode, 0)
+        self.assertIn("<|thought|>", proc.stdout)
+        self.assertIn("[Stage 1 - Analysis & Constraints]:", proc.stdout)
+        self.assertIn("[Stage 2 - Solvable Decomposition Plan]:", proc.stdout)
+        self.assertIn("[Verified Solution]:", proc.stdout)
+
+    def test_cli_search_command(self):
+        proc = subprocess.run(
+            [sys.executable, "-m", "hari_ai.cli", "search", "transformer attention"],
+            capture_output=True,
+            text=True,
+        )
+        self.assertEqual(proc.returncode, 0)
+        self.assertIn("HariNano Search Engine", proc.stdout)
+        self.assertIn("Search & Research Briefing", proc.stdout)
+
 
 if __name__ == "__main__":
     unittest.main()

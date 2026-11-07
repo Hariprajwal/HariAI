@@ -292,4 +292,5 @@ class HariNanoModel(nn.Module):
 
 
 # Backwards compatibility alias
+HariTransformerBlock = UAIATransformerBlock
 UAIANanoModel = HariNanoModel

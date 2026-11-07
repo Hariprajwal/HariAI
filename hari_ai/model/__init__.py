@@ -10,6 +10,7 @@ from hari_ai.model.layers import (
 )
 from hari_ai.model.transformer import (
     HariNanoModel,
+    HariTransformerBlock,
     StructuredDecisionHead,
     UAIANanoModel,
     UAIATransformerBlock,
@@ -24,6 +25,7 @@ __all__ = [
     "SwiGLU",
     "apply_rotary_emb",
     "StructuredDecisionHead",
+    "HariTransformerBlock",
     "UAIATransformerBlock",
     "HariNanoModel",
     "UAIANanoModel",
