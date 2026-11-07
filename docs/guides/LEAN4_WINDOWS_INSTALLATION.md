@@ -68,3 +68,4 @@ If output displays `2` with exit code `0`, **Lean 4 is fully operational on your
 HariAI's `hari_ai/verification/lean_kernel.py` automatically checks if `lean` is present in your system `PATH`:
 - **If Lean 4 is installed:** HariAI compiles mathematical theorems and logic proofs through the trusted Lean kernel mechanically. Proofs that pass receive $+1.0$ verifiable rewards. Proofs that fail return compiler diagnostics to the **Dream Engine** for sleep-time correction.
 - **If Lean 4 is not yet installed:** HariAI automatically falls back to deterministic Python assertion sandboxing (`exec(code + tests)`).
+
