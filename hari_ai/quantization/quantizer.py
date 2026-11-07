@@ -184,3 +184,4 @@ def load_quantized_checkpoint(
     model.to(device)
     model.eval()
     return model
+

@@ -150,3 +150,4 @@ class Cluster:
     @property
     def messages(self) -> List[ClusterMessage]:
         return self.blackboard.messages
+

@@ -181,3 +181,4 @@ class HariAI:
             "confidence": round(confidence, 3),
             "requires_human_approval": perm_required,
         }
+
