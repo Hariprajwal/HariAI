@@ -2,9 +2,13 @@
 
 Implements:
 - Parameter-isolated low-rank delta matrices: W = W_0 + (alpha / r) * (B @ A)
-- Freezes base model weights W_0 to guarantee zero catastrophic forgetting of core pre-trained capabilities.
-- Evaluates candidate checkpoints against a permanent regression benchmark suite before promotion.
-- Automatic rollback on metric regression (>1.0% drop).
+- Freezes base model weights while fitting adapters.
+- Requires a caller-supplied score comparison before the in-memory merge.
+- Supports rollback to the in-memory base snapshot.
+
+The caller is responsible for meaningful held-out evaluations, independent
+checkpoint persistence, and size checks. Frozen base weights do not guarantee
+that the adapted model retains all capabilities.
 """
 
 from __future__ import annotations
@@ -65,6 +69,8 @@ def inject_lora_adapters(
     model: UAIANanoModel, rank: int = 4, alpha: float = 8.0
 ) -> UAIANanoModel:
     """Injects trainable LoRA matrices into attention projections while freezing all base weights."""
+    for param in model.parameters():
+        param.requires_grad = False
     for block in model.blocks:
         if not isinstance(block.attn.q_proj, LoRALinear):
             block.attn.q_proj = LoRALinear(block.attn.q_proj, rank=rank, alpha=alpha)
@@ -110,21 +116,31 @@ class DreamLoRAEngine:
         self.rank = rank
         self.regression_tolerance_pct = regression_tolerance_pct
         self.base_checkpoint_backup: Optional[Dict[str, Any]] = None
+        self.original_trainability: Optional[Dict[str, bool]] = None
+        self._regression_passed = False
 
     def prepare_sleep_candidate(self) -> None:
         """Freezes base model and injects low-rank adapter parameters."""
+        if self.base_checkpoint_backup is not None:
+            raise RuntimeError("A sleep candidate is already active")
+        self._regression_passed = False
         # Create in-memory backup for immediate rollback if regression fails
         self.base_checkpoint_backup = {
             k: v.cpu().clone() for k, v in self.model.state_dict().items()
         }
+        self.original_trainability = {name: parameter.requires_grad for name, parameter in self.model.named_parameters()}
         inject_lora_adapters(self.model, rank=self.rank)
 
     def evaluate_regression_gate(
         self, pre_sleep_score: float, post_sleep_score: float
     ) -> bool:
         """Determines whether candidate adapter passes the regression safety threshold."""
+        if self.base_checkpoint_backup is None or not all(math.isfinite(x) and x >= 0 for x in (pre_sleep_score, post_sleep_score)):
+            self._regression_passed = False
+            return False
         allowed_drop = pre_sleep_score * (self.regression_tolerance_pct / 100.0)
         passed = post_sleep_score >= (pre_sleep_score - allowed_drop)
+        self._regression_passed = passed
         return passed
 
     def rollback(self) -> None:
@@ -132,10 +148,23 @@ class DreamLoRAEngine:
         remove_lora_adapters(self.model)
         if self.base_checkpoint_backup is not None:
             self.model.load_state_dict(self.base_checkpoint_backup)
+            if self.original_trainability is not None:
+                for name, param in self.model.named_parameters():
+                    param.requires_grad = self.original_trainability[name]
             print("[DreamLoRAEngine] Rollback executed: Pre-sleep base model restored.")
+        self.base_checkpoint_backup = None
+        self.original_trainability = None
+        self._regression_passed = False
 
     def promote(self) -> None:
         """Merges candidate adapter into base model weights."""
+        if self.base_checkpoint_backup is None or not self._regression_passed:
+            raise RuntimeError("A candidate must pass regression evaluation before promotion")
         merge_lora_adapters(self.model)
+        if self.original_trainability is not None:
+            for name, param in self.model.named_parameters():
+                param.requires_grad = self.original_trainability[name]
         self.base_checkpoint_backup = None
+        self.original_trainability = None
+        self._regression_passed = False
         print("[DreamLoRAEngine] Candidate adapter successfully merged into base model.")

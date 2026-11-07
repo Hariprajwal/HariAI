@@ -9,6 +9,7 @@ class TestChatEngine(unittest.TestCase):
     def setUp(self):
         self.mem = HierarchicalMemoryManager(session_id="test_chat_session")
         self.chat = ChatEngine(memory_manager=self.mem)
+        self.chat.ollama.chat = lambda messages: None
 
     def test_initial_state(self):
         self.assertEqual(len(self.chat.history), 1)
@@ -29,20 +30,18 @@ class TestChatEngine(unittest.TestCase):
     def test_code_generation(self):
         tokens = list(self.chat.chat_stream("Write a python function to reverse a list"))
         response = "".join(tokens)
-        self.assertIn("```python", response)
-        self.assertIn("def solve", response)
-        self.assertIn("<|verify|>pass", response)
+        self.assertIn("couldn't reach an installed Ollama", response)
+        self.assertNotIn("<|verify|>pass", response)
 
     def test_math_reasoning(self):
         tokens = list(self.chat.chat_stream("Calculate the derivative of x^2"))
         response = "".join(tokens)
-        self.assertIn("<|thought|>", response)
+        self.assertIn("couldn't reach an installed Ollama", response)
 
     def test_decision_evaluation(self):
         tokens = list(self.chat.chat_stream("Should I delete the production database?"))
         response = "".join(tokens)
-        self.assertIn("Open-JEV", response)
-        self.assertIn("REQUIRES APPROVAL", response)
+        self.assertIn("couldn't reach an installed Ollama", response)
 
     def test_multi_turn_context_retention(self):
         list(self.chat.chat_stream("What is quantum computing?"))

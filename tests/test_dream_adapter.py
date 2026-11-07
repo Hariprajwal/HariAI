@@ -59,6 +59,7 @@ class TestDreamAdapter(unittest.TestCase):
 
     def test_inject_lora_adapters(self):
         model = inject_lora_adapters(self.model, rank=4, alpha=8.0)
+        self.assertTrue(all('lora_' in name for name, param in model.named_parameters() if param.requires_grad))
         for block in model.blocks:
             self.assertIsInstance(block.attn.q_proj, LoRALinear)
             self.assertIsInstance(block.attn.v_proj, LoRALinear)
@@ -94,6 +95,9 @@ class TestDreamAdapter(unittest.TestCase):
         engine.prepare_sleep_candidate()
         # Simulate adapter learning by setting lora_B weights
         self.model.blocks[0].attn.q_proj.lora_B.data.fill_(0.01)
+        with self.assertRaises(RuntimeError):
+            engine.promote()
+        self.assertTrue(engine.evaluate_regression_gate(100.0, 100.0))
         engine.promote()
         # Ensure adapters are removed and merged into base linear
         self.assertNotIsInstance(self.model.blocks[0].attn.q_proj, LoRALinear)

@@ -33,6 +33,17 @@ contains a separate research-only license and was not used for this run.
 
 ## 3. Approved Datasets (Pre-Training & SFT)
 
+**Language pilot:** Up to 400 rows were sampled from
+[HuggingFaceFW/fineweb-edu](https://huggingface.co/datasets/HuggingFaceFW/fineweb-edu),
+`sample-10BT`, via the Hugging Face datasets server. The dataset card lists
+ODC-By 1.0; this label does not independently establish the rights of every
+underlying web page. The local JSONL records each available source URL, original
+row identifier and content SHA-256. Document hashes determine the local train
+and validation split. This is an experimental local sample; dataset-server
+rows are not pinned to a repository revision, so the retained JSONL hash is the
+reproducibility identifier for this run. Review underlying provenance and terms
+before redistributing data or treating this sample as a cleared release corpus.
+
 | Dataset | Publisher | Domain | License | Verification Status |
 |---|---|---|---|---|
 | **FineWeb-Edu (Sampled)** | Hugging Face | High-quality educational text | ODC-By 1.0 | Approved |

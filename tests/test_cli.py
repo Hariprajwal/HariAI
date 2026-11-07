@@ -14,7 +14,7 @@ class TestHariCLI(unittest.TestCase):
         )
         self.assertEqual(proc.returncode, 0)
         self.assertIn("K R Hari Prajwal", proc.stdout)
-        self.assertIn("Under 50 MB", proc.stdout)
+        self.assertIn("Under 35 MB", proc.stdout)
         self.assertIn("21 years old", proc.stdout)
 
     def test_cli_version_command(self):
@@ -55,10 +55,7 @@ class TestHariCLI(unittest.TestCase):
             text=True,
         )
         self.assertEqual(proc.returncode, 0)
-        self.assertIn("<|thought|>", proc.stdout)
-        self.assertIn("[Stage 1 - Analysis & Constraints]:", proc.stdout)
-        self.assertIn("[Stage 2 - Solvable Decomposition Plan]:", proc.stdout)
-        self.assertIn("[Verified Solution]:", proc.stdout)
+        self.assertNotIn("[Verified Solution]", proc.stdout)
 
     def test_cli_search_command(self):
         proc = subprocess.run(

@@ -5,11 +5,11 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "hari-ai"
 version = "0.1.0"
-description = "HariAI: Original, open-weight, extremely compact AI system under 50 MB"
+description = "HariAI: compact language model research and experimental continual learning"
 authors = [
     { name = "K R Hari Prajwal", email = "hariprajwal77@gmail.com" }
 ]
-readme = "plan.md"
+readme = "README.md"
 requires-python = ">=3.9"
 dependencies = [
     "torch>=2.0.0",
@@ -18,7 +18,6 @@ dependencies = [
 keywords = ["ai", "transformer", "slm", "small-language-model", "decision-engine", "edge-ai"]
 classifiers = [
     "Programming Language :: Python :: 3",
-    "License :: OSI Approved :: Apache Software License",
     "Operating System :: OS Independent",
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
 ]

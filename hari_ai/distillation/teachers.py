@@ -7,8 +7,8 @@ Orchestrates diverse teacher models:
 - SmolLM (Small-Model Efficiency Baseline)
 - High-Purity Synthetic Fallback (Deterministic Verification)
 
-Applies mechanical verification gates (Python assertion sandbox & Lean 4 kernel)
-to guarantee that 100% of retained training samples are mathematically and syntactically correct.
+Teacher output is unverified unless independently checked by a separate evaluator.
+This module does not execute teacher-generated code.
 """
 
 from __future__ import annotations
@@ -124,35 +124,10 @@ class MultiTeacherDistiller:
                     f"<|thought|>Synthesizing factual response for: {prompt}<|eos|>"
                 )
 
-        # 3. Mechanical Verification Gate
+        # Formatting, self-written assertions, and theorem keywords do not prove
+        # correctness. Generated code must not run on the host as a sandbox.
         verification_passed = False
-        verification_engine = "synthetic_format"
-
-        if task == DistillationTask.CODE_SYNTHESIS:
-            # Extract code and asserts if present
-            if "assert " in raw_response:
-                code_part = raw_response.split("<|action|>write_code")[-1].split(
-                    "<|verify|>"
-                )[0]
-                verif = auto_verify("python", code_part, "")
-                verification_passed = verif.passed
-                verification_engine = verif.engine
-            else:
-                verification_passed = True
-        elif task == DistillationTask.LEAN_MATH_PROOF:
-            if "<|lean|>" in raw_response:
-                verif = auto_verify("lean", raw_response, "")
-                # Passed if lean verified or if syntax formatted correctly
-                verification_passed = verif.passed or ("theorem " in raw_response)
-                verification_engine = verif.engine
-            else:
-                verification_passed = True
-        else:
-            # Decision trajectory schema verification
-            has_action = "<|action|>" in raw_response
-            has_conf = "<|confidence|>" in raw_response
-            verification_passed = has_action and has_conf
-            verification_engine = "open_jev_schema"
+        verification_engine = "not_evaluated"
 
         reward = 1.0 if verification_passed else 0.0
 

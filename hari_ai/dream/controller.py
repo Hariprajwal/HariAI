@@ -1,11 +1,8 @@
-"""HariAI Dream Engine Controller: Wake/Sleep Lifecycle Management.
+"""Prototype wake/sleep controller.
 
-Orchestrates:
-- State transitions between WAKE (active low-latency inference) and SLEEP (offline continual learning).
-- Preemptive cancellation on user input (zero-latency wake resumption).
-- Memory consolidation pipeline (Episodic -> Semantic / Procedural).
-- Autonomous synthetic curriculum generation from recorded mistakes.
-- Regression testing gate before candidate adapter promotion.
+The built-in cycle inspects memory only. Offline candidate training and its
+measured regression gate are separate experiments; this controller does not
+train, verify, or promote a checkpoint.
 """
 
 from __future__ import annotations
@@ -68,7 +65,7 @@ class DreamEngineController:
         self.memory = memory_manager
         self.idle_threshold_seconds = idle_threshold_seconds
         self.memory_threshold_entries = memory_threshold_entries
-        self.regression_evaluator = regression_evaluator or (lambda: True)
+        self.regression_evaluator = regression_evaluator
 
         self.current_state = SystemState.WAKE
         self.last_user_activity = time.time()
@@ -98,14 +95,14 @@ class DreamEngineController:
         return None
 
     def preempt_sleep(self, reason: str = "Immediate user intervention") -> None:
-        """Instantly aborts or pauses sleep mode to restore interactive responsiveness."""
+        """Requests cooperative cancellation of the prototype sleep cycle."""
         self._preempt_requested = True
         self.current_state = SystemState.WAKE
 
     def run_sleep_cycle(
         self, trigger: SleepTrigger = SleepTrigger.MANUAL
     ) -> DreamCycleResult:
-        """Executes a controlled offline sleep learning cycle."""
+        """Inspects experiences without creating or promoting model updates."""
         self.current_state = SystemState.SLEEP
         self._preempt_requested = False
         t_start = time.time()
@@ -124,32 +121,16 @@ class DreamEngineController:
             if self._preempt_requested:
                 break
 
-            # Consolidate successful tool runs or procedures
-            if exp.was_successful and exp.action_taken:
-                recipe = ProceduralRecipe(
-                    recipe_id=f"recipe-{exp.entry_id}",
-                    title=f"Procedure for: {exp.action_taken}",
-                    pattern_description=exp.user_input[:80],
-                    code_or_schema=exp.assistant_output[:200],
-                    verification_passed=True,
-                )
-                self.memory.procedural.register_recipe(recipe)
-                recipes_extracted += 1
-
-            # Identify mistakes and prepare synthetic practice targets
-            if not exp.was_successful or exp.user_feedback:
-                synthetic_count += 2  # Synthesize target practice cases
+            # Experiences are observations, not automatically verified lessons.
+            # No conversation is used as model training data by this controller.
 
         # Step 3: Run regression benchmark check
         regression_passed = False
         promoted = False
         candidate_checkpoint = None
 
-        if not self._preempt_requested:
+        if not self._preempt_requested and self.regression_evaluator is not None:
             regression_passed = self.regression_evaluator()
-            if regression_passed:
-                candidate_checkpoint = f"hari-ai-checkpoint-{int(time.time())}"
-                promoted = True
 
         t_end = time.time()
         self.current_state = SystemState.WAKE
@@ -167,7 +148,9 @@ class DreamEngineController:
             regression_tests_passed=regression_passed,
             candidate_checkpoint_id=candidate_checkpoint,
             promoted=promoted,
-            details={"preempted": self._preempt_requested},
+            details={"preempted": self._preempt_requested,
+                     "status": "inspection_only",
+                     "message": "No training, verification, or checkpoint promotion occurred."},
         )
 
         self.sleep_cycle_history.append(result)

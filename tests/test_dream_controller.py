@@ -66,10 +66,11 @@ class TestDreamEngineController(unittest.TestCase):
 
         result = self.controller.run_sleep_cycle(trigger=SleepTrigger.MANUAL)
         self.assertEqual(result.experiences_inspected, 2)
-        self.assertEqual(result.synthetic_exercises_generated, 2)
-        self.assertEqual(result.recipes_extracted, 1)
-        self.assertTrue(result.regression_tests_passed)
-        self.assertTrue(result.promoted)
+        self.assertEqual(result.synthetic_exercises_generated, 0)
+        self.assertEqual(result.recipes_extracted, 0)
+        self.assertFalse(result.regression_tests_passed)
+        self.assertFalse(result.promoted)
+        self.assertIsNone(result.candidate_checkpoint_id)
         self.assertEqual(self.controller.current_state, SystemState.WAKE)
 
     def test_user_preemption_wakes_sleep(self):

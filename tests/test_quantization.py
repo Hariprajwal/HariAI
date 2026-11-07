@@ -93,6 +93,13 @@ class TestQuantization(unittest.TestCase):
                 (2, config.n_actions),
             )
 
+    def test_ternary_linear_preserves_shared_scale(self):
+        linear = torch.nn.Linear(8, 4, bias=False)
+        quantized = QuantizedLinear.from_float(linear, precision="bitnet")
+        self.assertTrue(torch.all(quantized.scale == quantized.scale[0]))
+        result = quantized(torch.ones(1, 8))
+        self.assertEqual(tuple(result.shape), (1, 4))
+
 
 if __name__ == "__main__":
     unittest.main()

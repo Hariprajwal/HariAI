@@ -1,4 +1,7 @@
 # HariAI — Unified Adaptive Intelligence Architecture (UAIA) & Dream Engine
+> Historical design specification: many capabilities below remain proposals.
+> See [PROJECT_STATUS.md](PROJECT_STATUS.md) and
+> [Dream Engine status](docs/research/DREAM_ENGINE_STATUS.md) for the current implementation.
 **Specification Version:** `UAIA-Nano-1.0`  
 **Target Checkpoint:** `HariAI Nano`  
 **Weight Budget:** $\le 50.00\text{ MB}$  

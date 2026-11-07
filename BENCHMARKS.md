@@ -1,39 +1,38 @@
-# HariAI — Benchmarking Suite & Empirical Metrics
+# HariAI evaluation status
 
-This document records the quantitative evaluation suite, baselines, and empirical performance metrics for HariAI.
+The model weights, tokenizer, runtime, optional knowledge stores, peak RAM,
+and training compute are separate quantities. The current requirement is fewer
+than 35,000,000 bytes for the serialized neural model weights.
 
----
+## What has actually been measured
 
-## 1. Core Evaluation Principles
-1. **Zero Hallucinated Numbers:** Never report estimated or synthetic benchmark scores as empirical findings.
-2. **Reproducible Test Harness:** All benchmark datasets, prompts, evaluation scripts, and log dumps are version-controlled in `benchmarks/`.
-3. **Contamination Auditing:** Pre-training corpora are scrubbed against test sets with 13-gram overlap filtering.
+- The 4,000-step arithmetic student scored 34/42 exact matches on a small held-out
+  arithmetic set before quantization and 33/42 after quantization. Its quantized
+  checkpoint is 581,380 bytes. This tests a restricted range of addition and
+  subtraction; it does not measure general assistant capability.
+- `benchmarks/evaluate_checkpoint.py` evaluates the actual checkpoint against
+  `benchmarks/general_probe.jsonl` and records raw generations, dataset and
+  checkpoint hashes, and exact checkpoint bytes. The arithmetic student scored
+  1/8 on this public, hand-written smoke probe. It is far too small to estimate
+  overall quality and can be contaminated if added to training data.
+- The former 100% code-generation result measured four handwritten reference
+  solutions. It did not evaluate model-generated code and is withdrawn. The
+  legacy code-generation benchmark now explicitly reports `not_evaluated`.
+- The legacy decision confidence error is mean absolute error per example, not
+  expected calibration error. The INT4 size in the legacy system benchmark is
+  an estimate, not a measured checkpoint file size. Previous throughput,
+  calibration, and other release metrics lack reproducible artifacts and
+  should not be relied on.
 
----
+Example (choose a new output file for every run):
 
-## 2. Empirical Benchmark Findings (v0.1.0 Release)
+```powershell
+python benchmarks/evaluate_checkpoint.py checkpoints/arithmetic_student_long_v1/hari_student_int4.pt --output checkpoints/arithmetic_student_long_v1/probe2.json
+```
 
-Evaluated on host system (AMD Ryzen 7 5800H 8-core CPU, 24 GB RAM, Windows x64):
-
-| Benchmark Domain | Metric | Target Specification | Empirical Finding | Status |
-|---|---|---|---|---|
-| **Code Generation (MBPP / Invariant Pass@1)** | Functional Pass@1 | $\ge 80.0\%$ | **100.0%** (4/4 test tasks verified) | ✅ Exceeded |
-| **Model Weight File Size (INT4 Quantized)** | Disk Storage | $\le 50.00\text{ MB}$ | **0.61 MB** (`hari_ai_nano_int4.pt`) | ✅ Massively Exceeded |
-| **Model Weight File Size (FP32 Checkpoint)** | Disk Storage | $\le 50.00\text{ MB}$ | **3.37 MB** (`hari_ai_nano.pt`) | ✅ Massively Exceeded |
-| **Inference Throughput (CPU SIMD)** | Tokens / Second | $\ge 35\text{ tok/s}$ | **233.4 tokens/second** | ✅ 6.6x faster than target |
-| **Training Throughput (CPU OpenMP)** | Tokens / Second | $\ge 2,000\text{ tok/s}$ | **11,824 tokens/second** | ✅ 5.9x faster than target |
-| **Decision Boundary Accuracy** | Classification % | $\ge 75.0\%$ | **80.0%** | ✅ Met |
-| **Automated Unit Test Coverage** | Test Pass Rate | $100\%$ | **100% (84/84 tests passing)** | ✅ Met |
-
----
-
-## 3. Systems & Efficiency Benchmarks
-
-| System Metric | Hardware Platform | Target Metric |
-|---|---|---|
-| **Model Weight File Size** | Disk Storage | $\le 50.00\text{ MB}$ (Current: **$0.61\text{ MB}$ - $3.37\text{ MB}$**) |
-| **Inference Latency (CPU Single Thread)** | Intel Core i7 / AMD Ryzen (AVX2) | $\ge 35\text{ tokens/sec}$ (Empirical: **$233.4\text{ tok/s}$**) |
-| **Inference Latency (ARM64)** | Apple Silicon M-series (NEON) | $\ge 60\text{ tokens/sec}$ |
-| **Peak RAM Consumption during Generation** | Standard 64-bit OS | $\le 120\text{ MB}$ Total Working Set |
-| **Cold Start Time to First Token** | Native binary launch | $\le 150\text{ ms}$ |
-| **Multi-Agent Message Throughput** | Local IPC (Shared Memory) | $\ge 1,000\text{ msg/sec}$ |
+Before claiming broader progress, evaluate independently held-out language,
+instruction following, factuality, reasoning, arithmetic and code tasks, with
+the dataset versions, licenses, splits, prompts and scoring methods recorded.
+Run generated code only in a properly isolated execution environment. Measure
+quality before and after quantization on identical examples and report actual
+files, hardware, latency, memory use and runtime dependencies.

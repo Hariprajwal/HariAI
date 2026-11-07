@@ -1,5 +1,8 @@
 # HariAI — Architecture Decision Records (ADRs)
 
+> Historical research decisions may describe proposals or superseded targets.
+> See [PROJECT_STATUS.md](PROJECT_STATUS.md) for current status.
+
 This document tracks all formal architectural and technical decisions made during the lifecycle of HariAI.
 
 ---

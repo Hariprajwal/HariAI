@@ -34,7 +34,17 @@ class BenchmarkSuite:
         self.ai = ai or HariAI("nano")
 
     def evaluate_code_generation(self) -> Dict[str, Any]:
-        """Evaluates algorithmic synthesis against deterministic test assertions."""
+        """Mark code generation unevaluated until a safe model-output harness exists."""
+        return {
+            "total_tasks": 0,
+            "passed_tasks": 0,
+            "pass_at_1_pct": None,
+            "status": "not_evaluated",
+            "reason": "The previous benchmark executed handwritten reference solutions, not model output.",
+        }
+
+    def evaluate_reference_code(self) -> Dict[str, Any]:
+        """Check handwritten reference snippets; this is not a model benchmark."""
         test_problems = [
             {
                 "task": "reverse_list",
@@ -101,7 +111,7 @@ class BenchmarkSuite:
             confidences.append(dec["confidence"])
             accuracies.append(1 if is_act_correct else 0)
 
-        # Compute Expected Calibration Error (ECE)
+        # Per-example absolute confidence error is not binned ECE.
         conf_arr = np.array(confidences)
         acc_arr = np.array(accuracies)
         ece = float(np.mean(np.abs(conf_arr - acc_arr)))
@@ -110,7 +120,7 @@ class BenchmarkSuite:
             "total_scenarios": len(scenarios),
             "action_accuracy_pct": round((correct_action / len(scenarios)) * 100.0, 2),
             "permission_accuracy_pct": round((correct_perm / len(scenarios)) * 100.0, 2),
-            "expected_calibration_error": round(ece, 4),
+            "mean_absolute_confidence_error": round(ece, 4),
         }
 
     def evaluate_system_performance(self) -> Dict[str, Any]:
@@ -125,24 +135,6 @@ class BenchmarkSuite:
         t_elapsed = time.time() - t0
 
         tok_per_sec = len(tokens) / t_elapsed if t_elapsed > 0 else 0.0
-
-        # Memory working set in MB
-        import ctypes
-        class MS(ctypes.Structure):
-            _fields_ = [
-                ("dwLength", ctypes.c_ulong),
-                ("dwMemoryLoad", ctypes.c_ulong),
-                ("ullTotalPhys", ctypes.c_ulonglong),
-                ("ullAvailPhys", ctypes.c_ulonglong),
-                ("ullTotalPageFile", ctypes.c_ulonglong),
-                ("ullAvailPageFile", ctypes.c_ulonglong),
-                ("ullTotalVirtual", ctypes.c_ulonglong),
-                ("ullAvailVirtual", ctypes.c_ulonglong),
-                ("ullAvailExtendedVirtual", ctypes.c_ulonglong),
-            ]
-        ms = MS()
-        ms.dwLength = ctypes.sizeof(MS)
-        ctypes.windll.kernel32.GlobalMemoryStatusEx(ctypes.byref(ms))
 
         # Size of model
         total_params = self.ai.engine.model.count_parameters()
@@ -164,24 +156,24 @@ class BenchmarkSuite:
         print(" HARIAI NANO — COMPREHENSIVE RESEARCH BENCHMARK REPORT")
         print("=" * 80)
 
-        print("\n[1/3] Benchmarking Functional Code Generation (MBPP/HumanEval)...")
+        print("\n[1/3] Code generation benchmark status...")
         code_results = self.evaluate_code_generation()
-        print(f" -> Pass@1: {code_results['pass_at_1_pct']}% ({code_results['passed_tasks']}/{code_results['total_tasks']} tasks)")
+        print(f" -> {code_results['status']}: {code_results['reason']}")
 
         print("\n[2/3] Benchmarking Open-JEV Decision Engine & Calibration...")
         decision_results = self.evaluate_decision_and_calibration()
         print(f" -> Action Selection Accuracy: {decision_results['action_accuracy_pct']}%")
         print(f" -> Permission Boundary Gate Accuracy: {decision_results['permission_accuracy_pct']}%")
-        print(f" -> Expected Calibration Error (ECE): {decision_results['expected_calibration_error']}")
+        print(f" -> Mean absolute confidence error: {decision_results['mean_absolute_confidence_error']}")
 
         print("\n[3/3] Benchmarking System Performance & Hardware Efficiency...")
         sys_results = self.evaluate_system_performance()
         print(f" -> Throughput: {sys_results['throughput_tokens_per_sec']} tokens/sec ({sys_results['hardware_backend']})")
         print(f" -> Total Parameters: {sys_results['total_parameters']:,}")
-        print(f" -> INT4 Model Disk Footprint: {sys_results['int4_disk_size_mb']} MB (Ceiling <= 50.0 MB: {sys_results['under_50mb_ceiling']})")
+        print(f" -> Estimated INT4 size: {sys_results['int4_disk_size_mb']} MiB (not a serialized file measurement)")
 
         print("\n" + "=" * 80)
-        print(" RESEARCH VALIDATION VERDICT: ALL BENCHMARKS COMPLETED ACCORDING TO SPECIFICATION")
+        print(" RESEARCH STATUS: CODE GENERATION NOT EVALUATED")
         print("=" * 80)
 
         return {

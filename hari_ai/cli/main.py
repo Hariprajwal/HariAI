@@ -19,6 +19,7 @@ from hari_ai.memory.hierarchy import EpisodicEntry, HierarchicalMemoryManager
 from hari_ai.profile.creator import get_creator_profile
 from hari_ai.runtime.chat import ChatEngine
 from hari_ai.search.engine import SearchEngine
+from hari_ai.memory.store import MemoryStore
 
 
 BANNER = r"""
@@ -72,12 +73,12 @@ def cmd_info() -> None:
     print(f" Statement:      \"{profile.official_statement}\"")
     print(f" GitHub:         {profile.github_url}")
     print(f" LinkedIn:       {profile.linkedin_url}")
-    print(f" Target Model:   Under 50 MB (Complete Neural Weights)")
+    print(f" Target Model:   Under 35 MB (Complete Neural Weights)")
     print("=" * 60 + "\n")
 
 
 def cmd_version() -> None:
-    print("HariAI version 0.1.0 (HariNano Architecture, <= 45MB Target)")
+    print("HariAI version 0.1.0 (HariNano research, < 35 MB target)")
 
 
 def cmd_search(query: str) -> None:
@@ -113,6 +114,10 @@ def _is_coherent(text: str) -> bool:
 
 def cmd_think(prompt: str, llm: Optional[Any] = None) -> str:
     """Deliberate 5-stage reasoning loop: Analysis -> Plan -> Solve -> Verify -> Self-Correct."""
+    if llm is None:
+        answer = "".join(_CHAT_ENGINE.chat_stream("Please reason carefully about: " + prompt))
+        print(answer)
+        return answer
     if llm is None:
         llm = _CHAT_ENGINE.engine
 
@@ -221,23 +226,18 @@ def cmd_decide(situation: str) -> None:
         w in situation.lower()
         for w in ["delete", "delet", "remove", "drop", "terminate", "format", "erase"]
     )
-    selected_choice = "request_human_confirmation" if is_critical else "execute_autonomous_action"
-    confidence_score = 0.98 if is_critical else 0.92
-    noul_permission = True if is_critical else False
+    selected_choice = "request_human_confirmation" if is_critical else "review_situation"
+    noul_permission = True
 
     print(f" Choice (Selected Action): {selected_choice}")
-    print(f" Score (Confidence):       {confidence_score * 100:.1f}%")
+    print(" Score (Confidence):       unavailable (not calibrated)")
     print(f" Noul (Permission Gate):   {'REQUIRES APPROVAL' if noul_permission else 'AUTO-APPROVED'}")
     print("=" * 60 + "\n")
 
 
 def cmd_code(task: str) -> None:
-    """Algorithmic code generation with verified assertions."""
-    print(f"# HariAI Generated Implementation for: {task}")
-    print("def solve(input_data):\n    # Optimized algorithmic routine\n    return input_data\n")
-    print("# Invariant Assertions:")
-    print("assert solve([1, 2, 3]) == [1, 2, 3]")
-    print("<|verify|>pass")
+    """Request code from the configured chat backend without claiming verification."""
+    cmd_ask("Write code for the following request. State any assumptions: " + task)
 
 
 def cmd_memory(args: List[str]) -> None:
@@ -251,6 +251,24 @@ def cmd_memory(args: List[str]) -> None:
     elif sub == "clear":
         _MEMORY_MANAGER.working.clear()
         print("Working memory cleared.")
+    elif sub == "add":
+        text = " ".join(args[1:]).strip()
+        if not text:
+            print('Usage: hari memory add "Text to remember"')
+            return
+        store = MemoryStore()
+        print(f"Saved local memory {store.add(text)} at {store.path}. It is not used for model training.")
+    elif sub == "inspect":
+        memories = MemoryStore().list()
+        if not memories:
+            print("No saved local memories.")
+        for entry in memories:
+            print(f"{entry['id']}: {entry['content']}")
+    elif sub == "delete":
+        if len(args) != 2 or not args[1].isdigit():
+            print("Usage: hari memory delete <id>")
+            return
+        print("Memory deleted." if MemoryStore().delete(int(args[1])) else "Memory not found.")
     else:
         print(f"Memory command '{sub}' recognized. Memory is operating normally.")
 
@@ -264,8 +282,7 @@ def cmd_dream(args: List[str]) -> None:
         print("Analyzing recent experiences.")
         print(f"Inspected {result.experiences_inspected} experiences.")
         print(f"Generated {result.synthetic_exercises_generated} synthetic practice exercises.")
-        print("Evaluating candidate improvements against regression suite.")
-        print(f"Regression tests: {'PASSED' if result.regression_tests_passed else 'FAILED'}")
+        print("Status: inspection only; no training or checkpoint evaluation was run.")
         print("\nDream cycle completed.")
         print("No production model changes were made without passing evaluation.\n")
     elif sub == "status":

@@ -1,10 +1,9 @@
-"""Extreme model compression: INT4 and BitNet 1.58-bit ternary quantization for HariAI Nano.
+"""Experimental INT4 and ternary weight quantization for HariAI Nano.
 
-Guarantees:
-- Complete downloadable model weights <= 50.0 MB.
-- INT4 symmetric packing (2 parameters per uint8 byte -> 0.5 bytes/param).
-- BitNet 1.58-bit ternary weights {-1, 0, +1} with scale normalization.
-- On-the-fly dequantization and fast CPU SIMD execution.
+Linear weights, including ternary values, are stored as two 4-bit values per
+byte; embeddings and other tensors remain floating point. Linear weights are
+dequantized on each forward pass. This is not BitNet's 1.58-bit storage format
+or its trained architecture and optimized inference kernel.
 """
 
 from __future__ import annotations
@@ -107,7 +106,10 @@ class QuantizedLinear(nn.Module):
                 w_q, scale = quantize_tensor_int4(linear.weight)
 
             q_layer.packed_weight.copy_(pack_int4(w_q))
-            q_layer.scale.copy_(scale.view(linear.out_features, 1))
+            if scale.numel() == 1:
+                q_layer.scale.fill_(scale.item())
+            else:
+                q_layer.scale.copy_(scale.view(linear.out_features, 1))
 
             if linear.bias is not None:
                 q_layer.bias.copy_(linear.bias)

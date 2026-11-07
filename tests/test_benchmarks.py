@@ -26,14 +26,14 @@ class TestBenchmarks(unittest.TestCase):
     def test_code_generation_benchmark(self):
         res = self.suite.evaluate_code_generation()
         self.assertIn("pass_at_1_pct", res)
-        self.assertEqual(res["pass_at_1_pct"], 100.0)
-        self.assertEqual(res["passed_tasks"], res["total_tasks"])
+        self.assertIsNone(res["pass_at_1_pct"])
+        self.assertEqual(res["status"], "not_evaluated")
 
     def test_decision_and_calibration_benchmark(self):
         res = self.suite.evaluate_decision_and_calibration()
         self.assertIn("action_accuracy_pct", res)
-        self.assertIn("expected_calibration_error", res)
-        self.assertLessEqual(res["expected_calibration_error"], 1.0)
+        self.assertIn("mean_absolute_confidence_error", res)
+        self.assertLessEqual(res["mean_absolute_confidence_error"], 1.0)
 
     def test_system_performance_benchmark(self):
         res = self.suite.evaluate_system_performance()
