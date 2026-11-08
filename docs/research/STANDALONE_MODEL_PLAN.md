@@ -110,6 +110,41 @@ provide additional targets, but teachers' errors, license terms and duplicated
 evaluation data need explicit handling. Teachers are training tools; the
 released student can still run without them.
 
+### Findings from the live tests
+
+The [20-question conversation transcript](LIVE_CHAT_EVALUATION.md) shows that
+the baseline often fails to follow basic instructions: it did not answer
+12 + 7, confused Moon phases with an eclipse, retained subtraction when asked
+to fix an addition function, and fabricated details in a summary. The identity
+fine-tune learned creator responses but also emitted creator information for
+unrelated arithmetic and factual questions. This is consistent with
+overfitting or interference from an extremely small, identity-heavy adaptation
+set; the evidence does not prove a particular architectural defect.
+
+To distinguish these causes, the next controlled experiment should:
+
+1. Verify that training and runtime use matching chat templates, special tokens,
+   loss masking and stopping rules, and compare unmerged PyTorch and exported
+   GGUF outputs on the same prompts. Evaluate quantization separately.
+2. Compare the original base and adaptation on a fixed, held-out, diverse set
+   with independent arithmetic answers, executable code tests in an appropriate
+   sandbox, factual questions, multi-turn dialogue, and instruction following.
+   Record raw answers and score each capability separately. The 12 strict
+   exact-match probes here measure format as well as content.
+3. Add substantially more varied, properly licensed general instruction data
+   and replay; keep creator examples a small portion and include non-identity
+   prompts to test whether the identity answer leaks into unrelated tasks.
+   Compare several adaptation strengths against the unchanged base and reject
+   any candidate that regresses on held-out capabilities.
+4. Compare the installed SmolLM 135M with a stronger, appropriately licensed
+   foundation under the same prompts, runtime and precision. A larger model or
+   increased model-storage budget may be needed; quality gains cannot be
+   inferred from parameter counts alone.
+
+The current comparison is a development investigation, not a proof that a
+different architecture will reach ChatGPT quality at 35 MB. Open-JEV's typed
+heads also do not independently establish correctness of generated prose.
+
 Compression must be measured after export, with tokenizer and auxiliary weights
 counted. Compare each candidate against its unmodified foundation and reject
 regressions. For coding tests, execute only reviewed tasks in a suitable sandbox;
