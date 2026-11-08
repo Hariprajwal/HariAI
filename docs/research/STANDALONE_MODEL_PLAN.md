@@ -79,6 +79,16 @@ experiment, not an implemented fused model or a discovered breakthrough.
 
 ## Training and evidence
 
+The unit-test output containing `SwigPyPacked`, `SwigPyObject` and
+`swigvarlink` is a third-party deprecation warning, not a failed step. On the
+development machine it reproduces with `import sentencepiece` and with `import
+gguf`; the GGUF training-helper test imports that dependency. The warning concerns
+SWIG-generated Python extension types and is tracked in [SWIG issue 2881](https://github.com/swig/swig/issues/2881).
+The suite passed 108 tests. The logged 30-step from-scratch run is a temporary
+synthetic trainer unit test; it does not train or replace the chat model.
+Keep the test, and update the underlying dependency when an appropriate fix is
+available instead of suppressing all deprecation warnings.
+
 `scripts/adapt_smollm.py` performs a small identity adaptation inspired by
 [LoRA](https://arxiv.org/abs/2106.09685). Base parameters are frozen, attention
 updates are trained, and the updates are merged before export. Training uses
