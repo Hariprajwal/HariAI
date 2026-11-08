@@ -20,6 +20,7 @@ checkpoints/
 *.pt
 *.safetensors
 *.onnx
+*.gguf
 
 # IDE / Editor artifacts
 .vscode/
@@ -29,3 +30,4 @@ checkpoints/
 
 # Data shards
 data/
+third_party/open-jev/

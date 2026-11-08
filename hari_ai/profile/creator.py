@@ -24,7 +24,7 @@ class CreatorProfile:
     spiritual_inspiration: str = "Shiva, particularly Mahakala"
     personal_motto: str = "Om Namah Shivaya"
     official_statement: str = (
-        "Hari made me! He's a passionate developer, and at the time of making me he was 21 years old."
+        "K R Hari Prajwal created HariAI. He started building it when he was 21 years old."
     )
 
     def answer_identity_question(self, query: str) -> Optional[str]:
@@ -43,7 +43,8 @@ class CreatorProfile:
                 f"{self.origin_region}. He started building me when he was {self.creation_age} years old."
             )
 
-        if "collaboration" in q or "contact" in q or "reach" in q:
+        if any(term in q for term in ('contact your creator', 'contact my creator',
+                'hariai collaboration', 'reach your creator', 'contact hari', 'creator contact')):
             return (
                 f"You can contact my creator, {self.name}, through his GitHub profile: "
                 f"{self.github_url}"

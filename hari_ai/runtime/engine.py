@@ -11,9 +11,11 @@ Implements:
 from __future__ import annotations
 
 import enum
+import codecs
 import math
 import os
 import platform
+from pathlib import Path
 from dataclasses import dataclass
 from typing import Any, Dict, Iterator, List, Optional, Tuple, Union
 
@@ -66,11 +68,16 @@ class InferenceEngine:
         self.backend = backend or detect_best_hardware()
         self.device = torch.device("cuda" if self.backend == HardwareBackend.CUDA else "cpu")
 
-        # Resolve default checkpoint path if "nano" is specified
+        # Resolve the bundled prototype and its matching tokenizer.
+        is_default_nano = model_path_or_name == 'nano'
         if model_path_or_name == "nano":
-            default_path = os.path.join("checkpoints", "hari_ai_nano.pt")
+            default_path = str(Path(__file__).resolve().parents[2] / 'checkpoints' / 'hari_ai_nano.pt')
             if os.path.exists(default_path):
                 model_path_or_name = default_path
+
+        self.checkpoint_loaded = os.path.isfile(model_path_or_name)
+        if model_path_or_name != 'nano' and not self.checkpoint_loaded and config is None:
+            raise FileNotFoundError(f"Model checkpoint not found: {model_path_or_name}")
 
         # 1. Initialize or Load Model
         if os.path.exists(model_path_or_name):
@@ -89,11 +96,14 @@ class InferenceEngine:
 
         # 2. Tokenizer
         if tokenizer_path is None and os.path.exists(model_path_or_name):
-            candidates = [os.path.join(os.path.dirname(model_path_or_name), "tokenizer.json"),
-                          os.path.join("data", "shards", "tokenizer.json")]
+            candidates = [os.path.join(os.path.dirname(model_path_or_name), "tokenizer.json")]
+            if is_default_nano:
+                candidates.append(str(Path(__file__).resolve().parents[2] / 'data' / 'shards' / 'tokenizer.json'))
             tokenizer_path = next((path for path in candidates if os.path.isfile(path)), None)
         self.tokenizer = (ByteFallbackBPETokenizer.load(tokenizer_path) if tokenizer_path
                           else ByteFallbackBPETokenizer(target_vocab_size=self.model.config.vocab_size))
+        if self.checkpoint_loaded and not tokenizer_path and self.model.config.vocab_size != self.tokenizer.vocab_size:
+            raise ValueError('Matching tokenizer.json is required for this checkpoint; set nano-tokenizer or put it beside the checkpoint.')
         if tokenizer_path and self.tokenizer.vocab_size != self.model.config.vocab_size:
             raise ValueError("Tokenizer vocabulary does not match checkpoint; supply its matching tokenizer_path.")
 
@@ -103,24 +113,19 @@ class InferenceEngine:
         gen_config: Optional[GenerationConfig] = None,
         include_confidence: bool = False,
     ) -> Iterator[str]:
-        """Yields generated tokens one by one for streaming terminal outputs with calibrated confidence."""
+        """Yield decoded text from the model; no correctness confidence is inferred."""
         cfg = gen_config or GenerationConfig()
         token_ids = self.tokenizer.encode(prompt, add_bos=True)
         input_tensor = torch.tensor([token_ids], dtype=torch.long, device=self.device)
 
-        log_probs_sum = 0.0
-        generated_count = 0
-        final_confidence_head = 0.92
+        decoder = codecs.getincrementaldecoder('utf-8')(errors='replace')
 
         with torch.no_grad():
             out = self.model(input_tensor, kv_caches=None, start_pos=0)
             kv_caches = out["kv_caches"]
             next_token_logits = out["logits"][:, -1, :]
-            if "confidence" in out and out["confidence"] is not None:
-                final_confidence_head = float(out["confidence"][0].item())
 
             for step in range(cfg.max_new_tokens):
-                probs = F.softmax(next_token_logits, dim=-1)
                 if cfg.temperature > 0:
                     scaled = next_token_logits / cfg.temperature
                     if cfg.top_k > 0:
@@ -135,11 +140,12 @@ class InferenceEngine:
                 if tok_id == self.tokenizer.eos_id:
                     break
 
-                tok_prob = float(probs[0, tok_id].item())
-                log_probs_sum += math.log(max(tok_prob, 1e-6))
-                generated_count += 1
-
-                yield self.tokenizer.decode([tok_id], skip_special_tokens=False)
+                if tok_id in self.tokenizer.inverse_special_tokens_map:
+                    continue_text = ''
+                else:
+                    continue_text = decoder.decode(self.tokenizer.vocab.get(tok_id, b'?'))
+                if continue_text:
+                    yield continue_text
 
                 out = self.model(
                     next_tok,
@@ -148,19 +154,9 @@ class InferenceEngine:
                 )
                 kv_caches = out["kv_caches"]
                 next_token_logits = out["logits"][:, -1, :]
-                if "confidence" in out and out["confidence"] is not None:
-                    final_confidence_head = float(out["confidence"][0].item())
-
-        if include_confidence:
-            if generated_count > 0:
-                avg_log_prob = log_probs_sum / generated_count
-                token_conf = math.exp(avg_log_prob)
-                overall_confidence = (0.5 * token_conf + 0.5 * final_confidence_head) * 100.0
-                overall_confidence = min(99.4, max(82.0, overall_confidence))
-            else:
-                overall_confidence = final_confidence_head * 100.0
-
-            yield f"\n\033[90m[Confidence: {overall_confidence:.1f}% | HariNano LLM]\033[0m\n"
+        trailing = decoder.decode(b'', final=True)
+        if trailing:
+            yield trailing
 
     def generate(self, prompt: str, gen_config: Optional[GenerationConfig] = None) -> str:
         """Generates complete text response."""
@@ -170,14 +166,31 @@ class InferenceEngine:
 class HariAI:
     """Official Public Python SDK for HariAI."""
 
-    def __init__(self, model_name: str = "nano", **kwargs):
-        self.engine = InferenceEngine(model_path_or_name=model_name, **kwargs)
+    def __init__(self, model_name: str = "local", **kwargs):
+        self.chat = None
+        if model_name in ('local', 'ollama'):
+            from hari_ai.runtime.chat import ChatEngine
+            from hari_ai.runtime.settings import load_settings
+            settings = load_settings()
+            settings.backend = model_name
+            if 'model_path' in kwargs:
+                settings.model_file = str(kwargs.pop('model_path'))
+            if kwargs:
+                raise TypeError(f'Unsupported arguments for {model_name}: {list(kwargs)}')
+            self.chat = ChatEngine(settings=settings)
+            self.engine = self.chat.local_model if model_name == 'local' else None
+            self.creator_profile = get_creator_profile()
+            self.use_ollama = model_name == 'ollama'
+            return
+        self.engine = InferenceEngine(model_path_or_name='nano' if model_name == 'ollama' else model_name, **kwargs)
         self.creator_profile = get_creator_profile()
         self.ollama = OllamaClient()
-        self.use_ollama = model_name in ("nano", "ollama")
+        self.use_ollama = model_name == "ollama"
 
     def ask(self, question: str) -> str:
         """Fast answer to general questions, with dynamic identity resolution."""
+        if self.chat is not None:
+            return ''.join(self.chat.chat_stream(question))
         # Intercept creator identity questions
         identity_resp = self.creator_profile.answer_identity_question(question)
         if identity_resp:
@@ -195,7 +208,12 @@ class HariAI:
                 return ollama_response
 
         if not self.use_ollama:
-            return self.engine.generate(f"User: {question}\nHariAI:")
+            if not self.engine.checkpoint_loaded:
+                return "HariNano checkpoint not found. Configure or train a checkpoint before chatting."
+            response = self.engine.generate(f"User: {question}\nHariAI:").strip()
+            if not response or not any(ch.isalnum() for ch in response):
+                return "HariNano could not produce a usable answer; the current checkpoint needs more training."
+            return response
 
         return (
             "Ollama is unavailable or has no installed chat model. HariAI Nano is an "
@@ -203,8 +221,18 @@ class HariAI:
             "assistant yet. Start Ollama and set HARIAI_OLLAMA_MODEL if needed."
         )
 
+    def decide_operation(self, state: Dict[str, str]) -> Dict[str, Any]:
+        """Run the bundled Open-JEV bounded policy model, without taking actions."""
+        from hari_ai.runtime.openjev import OperationDecisionModel
+        if not hasattr(self, '_operation_model'):
+            self._operation_model = OperationDecisionModel()
+        return self._operation_model.decide(state)
+
     def think(self, problem: str) -> Dict[str, str]:
         """Deliberative 5-stage reasoning loop: Analysis -> Plan -> Solve -> Verify -> Self-Correct."""
+        if self.chat is not None:
+            return {'result': self.ask('Please reason carefully about: ' + problem),
+                    'thought': '', 'verification': 'not independently verified'}
         # Step 1: Understand problem & constraints
         analysis = self.engine.generate(
             f"Identify problem type and constraints for: {problem}",
@@ -267,6 +295,15 @@ class HariAI:
         self, situation: str, actions: Optional[List[str]] = None
     ) -> Dict[str, Any]:
         """Open-JEV style single-forward-pass typed decision readout."""
+        if self.chat is not None:
+            from hari_ai.runtime.openjev import OpenJevAdapter
+            path = self.chat.settings.openjev_checkpoint
+            if not path:
+                raise ValueError('Typed decisions require a separately trained Open-JEV checkpoint. '
+                                 'The bundled language model does not provide calibrated decisions.')
+            if not actions:
+                raise ValueError('Supply at least two choices for your trained decision task.')
+            return OpenJevAdapter(path).decide({'situation': situation}, 'Which action?', actions)
         action_candidates = actions or ["retry", "debug", "proceed", "request_approval", "stop"]
 
         # Run model forward pass on encoded situation

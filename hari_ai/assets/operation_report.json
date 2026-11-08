@@ -1,0 +1,378 @@
+{
+  "creator": "K R Hari Prajwal",
+  "scope": "operation_policy_v1",
+  "training_records": 72,
+  "test_records": 24,
+  "seed": 17,
+  "steps": 400,
+  "test_accuracy": 0.875,
+  "majority_baseline": 0.5,
+  "ordering_invariant": true,
+  "passed": true,
+  "confidence_trained": false,
+  "calibrated": false,
+  "limitations": "Synthetic finite schema only. No general language decisions or security enforcement.",
+  "results": [
+    {
+      "state": {
+        "operation": "list",
+        "scope": "single",
+        "authorized": "yes",
+        "backup": "no"
+      },
+      "expected": "proceed",
+      "predicted": "proceed",
+      "probabilities": {
+        "proceed": 0.960063636302948,
+        "review": 0.020110204815864563,
+        "stop": 0.019826095551252365
+      }
+    },
+    {
+      "state": {
+        "operation": "list",
+        "scope": "single",
+        "authorized": "yes",
+        "backup": "yes"
+      },
+      "expected": "proceed",
+      "predicted": "proceed",
+      "probabilities": {
+        "proceed": 0.96011883020401,
+        "review": 0.018441779538989067,
+        "stop": 0.021439364179968834
+      }
+    },
+    {
+      "state": {
+        "operation": "export",
+        "scope": "single",
+        "authorized": "yes",
+        "backup": "no"
+      },
+      "expected": "proceed",
+      "predicted": "review",
+      "probabilities": {
+        "proceed": 0.027768833562731743,
+        "review": 0.9547549486160278,
+        "stop": 0.017476176843047142
+      }
+    },
+    {
+      "state": {
+        "operation": "read",
+        "scope": "batch",
+        "authorized": "yes",
+        "backup": "yes"
+      },
+      "expected": "proceed",
+      "predicted": "proceed",
+      "probabilities": {
+        "proceed": 0.9604650735855103,
+        "review": 0.01972830295562744,
+        "stop": 0.019806617870926857
+      }
+    },
+    {
+      "state": {
+        "operation": "update",
+        "scope": "single",
+        "authorized": "yes",
+        "backup": "no"
+      },
+      "expected": "proceed",
+      "predicted": "review",
+      "probabilities": {
+        "proceed": 0.131476029753685,
+        "review": 0.8542922139167786,
+        "stop": 0.014231747016310692
+      }
+    },
+    {
+      "state": {
+        "operation": "create",
+        "scope": "batch",
+        "authorized": "yes",
+        "backup": "yes"
+      },
+      "expected": "review",
+      "predicted": "review",
+      "probabilities": {
+        "proceed": 0.1225237026810646,
+        "review": 0.8631691932678223,
+        "stop": 0.014307152479887009
+      }
+    },
+    {
+      "state": {
+        "operation": "update",
+        "scope": "batch",
+        "authorized": "yes",
+        "backup": "no"
+      },
+      "expected": "review",
+      "predicted": "review",
+      "probabilities": {
+        "proceed": 0.017360271885991096,
+        "review": 0.9604082703590393,
+        "stop": 0.022231491282582283
+      }
+    },
+    {
+      "state": {
+        "operation": "create",
+        "scope": "all",
+        "authorized": "yes",
+        "backup": "yes"
+      },
+      "expected": "review",
+      "predicted": "proceed",
+      "probabilities": {
+        "proceed": 0.855679452419281,
+        "review": 0.12952831387519836,
+        "stop": 0.014792240224778652
+      }
+    },
+    {
+      "state": {
+        "operation": "update",
+        "scope": "all",
+        "authorized": "yes",
+        "backup": "no"
+      },
+      "expected": "review",
+      "predicted": "review",
+      "probabilities": {
+        "proceed": 0.0176108218729496,
+        "review": 0.9602221250534058,
+        "stop": 0.02216712385416031
+      }
+    },
+    {
+      "state": {
+        "operation": "format",
+        "scope": "batch",
+        "authorized": "yes",
+        "backup": "yes"
+      },
+      "expected": "review",
+      "predicted": "review",
+      "probabilities": {
+        "proceed": 0.01867845468223095,
+        "review": 0.960220456123352,
+        "stop": 0.021101154386997223
+      }
+    },
+    {
+      "state": {
+        "operation": "create",
+        "scope": "all",
+        "authorized": "yes",
+        "backup": "no"
+      },
+      "expected": "review",
+      "predicted": "review",
+      "probabilities": {
+        "proceed": 0.040462836623191833,
+        "review": 0.9434660077095032,
+        "stop": 0.01607118919491768
+      }
+    },
+    {
+      "state": {
+        "operation": "delete",
+        "scope": "batch",
+        "authorized": "yes",
+        "backup": "yes"
+      },
+      "expected": "review",
+      "predicted": "review",
+      "probabilities": {
+        "proceed": 0.017961861565709114,
+        "review": 0.9603980183601379,
+        "stop": 0.021640125662088394
+      }
+    },
+    {
+      "state": {
+        "operation": "overwrite",
+        "scope": "batch",
+        "authorized": "no",
+        "backup": "no"
+      },
+      "expected": "stop",
+      "predicted": "stop",
+      "probabilities": {
+        "proceed": 0.019963571801781654,
+        "review": 0.020062191411852837,
+        "stop": 0.9599742293357849
+      }
+    },
+    {
+      "state": {
+        "operation": "overwrite",
+        "scope": "all",
+        "authorized": "no",
+        "backup": "yes"
+      },
+      "expected": "stop",
+      "predicted": "stop",
+      "probabilities": {
+        "proceed": 0.01992606744170189,
+        "review": 0.02027435041964054,
+        "stop": 0.959799587726593
+      }
+    },
+    {
+      "state": {
+        "operation": "format",
+        "scope": "single",
+        "authorized": "no",
+        "backup": "no"
+      },
+      "expected": "stop",
+      "predicted": "stop",
+      "probabilities": {
+        "proceed": 0.0211316104978323,
+        "review": 0.018550364300608635,
+        "stop": 0.9603179693222046
+      }
+    },
+    {
+      "state": {
+        "operation": "format",
+        "scope": "batch",
+        "authorized": "no",
+        "backup": "no"
+      },
+      "expected": "stop",
+      "predicted": "stop",
+      "probabilities": {
+        "proceed": 0.020019400864839554,
+        "review": 0.019986510276794434,
+        "stop": 0.9599940776824951
+      }
+    },
+    {
+      "state": {
+        "operation": "export",
+        "scope": "all",
+        "authorized": "no",
+        "backup": "no"
+      },
+      "expected": "stop",
+      "predicted": "stop",
+      "probabilities": {
+        "proceed": 0.019751861691474915,
+        "review": 0.02042381651699543,
+        "stop": 0.95982426404953
+      }
+    },
+    {
+      "state": {
+        "operation": "overwrite",
+        "scope": "single",
+        "authorized": "no",
+        "backup": "no"
+      },
+      "expected": "stop",
+      "predicted": "stop",
+      "probabilities": {
+        "proceed": 0.020860737189650536,
+        "review": 0.018888484686613083,
+        "stop": 0.9602507948875427
+      }
+    },
+    {
+      "state": {
+        "operation": "export",
+        "scope": "single",
+        "authorized": "no",
+        "backup": "yes"
+      },
+      "expected": "stop",
+      "predicted": "stop",
+      "probabilities": {
+        "proceed": 0.02045181579887867,
+        "review": 0.019364072009921074,
+        "stop": 0.9601840972900391
+      }
+    },
+    {
+      "state": {
+        "operation": "create",
+        "scope": "single",
+        "authorized": "no",
+        "backup": "yes"
+      },
+      "expected": "stop",
+      "predicted": "stop",
+      "probabilities": {
+        "proceed": 0.020425530150532722,
+        "review": 0.019283173605799675,
+        "stop": 0.9602912664413452
+      }
+    },
+    {
+      "state": {
+        "operation": "update",
+        "scope": "single",
+        "authorized": "no",
+        "backup": "yes"
+      },
+      "expected": "stop",
+      "predicted": "stop",
+      "probabilities": {
+        "proceed": 0.020661937072873116,
+        "review": 0.019325094297528267,
+        "stop": 0.9600129723548889
+      }
+    },
+    {
+      "state": {
+        "operation": "list",
+        "scope": "all",
+        "authorized": "no",
+        "backup": "yes"
+      },
+      "expected": "stop",
+      "predicted": "stop",
+      "probabilities": {
+        "proceed": 0.018821438774466515,
+        "review": 0.021667037159204483,
+        "stop": 0.9595115184783936
+      }
+    },
+    {
+      "state": {
+        "operation": "overwrite",
+        "scope": "batch",
+        "authorized": "no",
+        "backup": "yes"
+      },
+      "expected": "stop",
+      "predicted": "stop",
+      "probabilities": {
+        "proceed": 0.02010464482009411,
+        "review": 0.02000824548304081,
+        "stop": 0.9598870873451233
+      }
+    },
+    {
+      "state": {
+        "operation": "delete",
+        "scope": "all",
+        "authorized": "no",
+        "backup": "yes"
+      },
+      "expected": "stop",
+      "predicted": "stop",
+      "probabilities": {
+        "proceed": 0.01991417072713375,
+        "review": 0.020309973508119583,
+        "stop": 0.9597758650779724
+      }
+    }
+  ],
+  "checkpoint_bytes": 701370
+}

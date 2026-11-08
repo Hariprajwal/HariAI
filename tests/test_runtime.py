@@ -1,6 +1,7 @@
 """Unit tests for HariAI Native Inference Runtime and Public Python SDK."""
 
 import unittest
+import torch
 from hari_ai import Cluster, HariAI
 from hari_ai.model.config import UAIANanoConfig
 from hari_ai.runtime.engine import (
@@ -70,6 +71,24 @@ class TestRuntimeAndSDK(unittest.TestCase):
         chunks = list(stream)
         self.assertIsInstance(chunks, list)
         self.assertLessEqual(len(chunks), 4)
+
+    def test_streaming_decodes_multibyte_tokens_without_fake_confidence(self):
+        from hari_ai.tokenizer.bpe import ByteFallbackBPETokenizer
+        engine = InferenceEngine.__new__(InferenceEngine)
+        engine.device = torch.device('cpu')
+        engine.tokenizer = ByteFallbackBPETokenizer()
+        ids = [byte + 10 for byte in '🙂'.encode('utf-8')] + [engine.tokenizer.eos_id]
+        class Model:
+            def __init__(self):
+                self.index = 0
+            def __call__(self, tokens, **kwargs):
+                logits = torch.full((1, tokens.shape[1], 266), -100.0)
+                logits[0, -1, ids[self.index]] = 100.0
+                self.index += 1
+                return {'logits': logits, 'kv_caches': []}
+        engine.model = Model()
+        output = ''.join(engine.generate_stream('x', GenerationConfig(max_new_tokens=5, temperature=0), include_confidence=True))
+        self.assertEqual(output, '🙂')
 
     def test_cluster_public_sdk_integration(self):
         cluster = Cluster(max_messages=10)

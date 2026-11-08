@@ -1,0 +1,582 @@
+{
+  "train": [
+    {
+      "operation": "read",
+      "scope": "batch",
+      "authorized": "yes",
+      "backup": "no"
+    },
+    {
+      "operation": "update",
+      "scope": "single",
+      "authorized": "yes",
+      "backup": "yes"
+    },
+    {
+      "operation": "read",
+      "scope": "single",
+      "authorized": "yes",
+      "backup": "yes"
+    },
+    {
+      "operation": "read",
+      "scope": "single",
+      "authorized": "yes",
+      "backup": "no"
+    },
+    {
+      "operation": "read",
+      "scope": "all",
+      "authorized": "yes",
+      "backup": "yes"
+    },
+    {
+      "operation": "list",
+      "scope": "all",
+      "authorized": "yes",
+      "backup": "yes"
+    },
+    {
+      "operation": "list",
+      "scope": "batch",
+      "authorized": "yes",
+      "backup": "yes"
+    },
+    {
+      "operation": "export",
+      "scope": "single",
+      "authorized": "yes",
+      "backup": "yes"
+    },
+    {
+      "operation": "format",
+      "scope": "single",
+      "authorized": "yes",
+      "backup": "yes"
+    },
+    {
+      "operation": "create",
+      "scope": "single",
+      "authorized": "yes",
+      "backup": "yes"
+    },
+    {
+      "operation": "read",
+      "scope": "all",
+      "authorized": "yes",
+      "backup": "no"
+    },
+    {
+      "operation": "overwrite",
+      "scope": "single",
+      "authorized": "yes",
+      "backup": "yes"
+    },
+    {
+      "operation": "list",
+      "scope": "all",
+      "authorized": "yes",
+      "backup": "no"
+    },
+    {
+      "operation": "list",
+      "scope": "batch",
+      "authorized": "yes",
+      "backup": "no"
+    },
+    {
+      "operation": "create",
+      "scope": "single",
+      "authorized": "yes",
+      "backup": "no"
+    },
+    {
+      "operation": "delete",
+      "scope": "single",
+      "authorized": "yes",
+      "backup": "yes"
+    },
+    {
+      "operation": "export",
+      "scope": "batch",
+      "authorized": "yes",
+      "backup": "no"
+    },
+    {
+      "operation": "format",
+      "scope": "all",
+      "authorized": "yes",
+      "backup": "yes"
+    },
+    {
+      "operation": "export",
+      "scope": "all",
+      "authorized": "yes",
+      "backup": "yes"
+    },
+    {
+      "operation": "format",
+      "scope": "single",
+      "authorized": "yes",
+      "backup": "no"
+    },
+    {
+      "operation": "format",
+      "scope": "batch",
+      "authorized": "yes",
+      "backup": "no"
+    },
+    {
+      "operation": "delete",
+      "scope": "all",
+      "authorized": "yes",
+      "backup": "yes"
+    },
+    {
+      "operation": "export",
+      "scope": "all",
+      "authorized": "yes",
+      "backup": "no"
+    },
+    {
+      "operation": "delete",
+      "scope": "single",
+      "authorized": "yes",
+      "backup": "no"
+    },
+    {
+      "operation": "delete",
+      "scope": "batch",
+      "authorized": "yes",
+      "backup": "no"
+    },
+    {
+      "operation": "overwrite",
+      "scope": "single",
+      "authorized": "yes",
+      "backup": "no"
+    },
+    {
+      "operation": "overwrite",
+      "scope": "batch",
+      "authorized": "yes",
+      "backup": "yes"
+    },
+    {
+      "operation": "update",
+      "scope": "all",
+      "authorized": "yes",
+      "backup": "yes"
+    },
+    {
+      "operation": "overwrite",
+      "scope": "all",
+      "authorized": "yes",
+      "backup": "no"
+    },
+    {
+      "operation": "create",
+      "scope": "batch",
+      "authorized": "yes",
+      "backup": "no"
+    },
+    {
+      "operation": "format",
+      "scope": "all",
+      "authorized": "yes",
+      "backup": "no"
+    },
+    {
+      "operation": "update",
+      "scope": "batch",
+      "authorized": "yes",
+      "backup": "yes"
+    },
+    {
+      "operation": "delete",
+      "scope": "all",
+      "authorized": "yes",
+      "backup": "no"
+    },
+    {
+      "operation": "export",
+      "scope": "batch",
+      "authorized": "yes",
+      "backup": "yes"
+    },
+    {
+      "operation": "overwrite",
+      "scope": "all",
+      "authorized": "yes",
+      "backup": "yes"
+    },
+    {
+      "operation": "overwrite",
+      "scope": "batch",
+      "authorized": "yes",
+      "backup": "no"
+    },
+    {
+      "operation": "create",
+      "scope": "batch",
+      "authorized": "no",
+      "backup": "yes"
+    },
+    {
+      "operation": "delete",
+      "scope": "batch",
+      "authorized": "no",
+      "backup": "yes"
+    },
+    {
+      "operation": "read",
+      "scope": "all",
+      "authorized": "no",
+      "backup": "no"
+    },
+    {
+      "operation": "delete",
+      "scope": "all",
+      "authorized": "no",
+      "backup": "no"
+    },
+    {
+      "operation": "list",
+      "scope": "batch",
+      "authorized": "no",
+      "backup": "no"
+    },
+    {
+      "operation": "delete",
+      "scope": "single",
+      "authorized": "no",
+      "backup": "yes"
+    },
+    {
+      "operation": "read",
+      "scope": "all",
+      "authorized": "no",
+      "backup": "yes"
+    },
+    {
+      "operation": "update",
+      "scope": "batch",
+      "authorized": "no",
+      "backup": "yes"
+    },
+    {
+      "operation": "export",
+      "scope": "all",
+      "authorized": "no",
+      "backup": "yes"
+    },
+    {
+      "operation": "create",
+      "scope": "all",
+      "authorized": "no",
+      "backup": "no"
+    },
+    {
+      "operation": "update",
+      "scope": "single",
+      "authorized": "no",
+      "backup": "no"
+    },
+    {
+      "operation": "list",
+      "scope": "single",
+      "authorized": "no",
+      "backup": "yes"
+    },
+    {
+      "operation": "export",
+      "scope": "batch",
+      "authorized": "no",
+      "backup": "yes"
+    },
+    {
+      "operation": "format",
+      "scope": "all",
+      "authorized": "no",
+      "backup": "no"
+    },
+    {
+      "operation": "read",
+      "scope": "batch",
+      "authorized": "no",
+      "backup": "yes"
+    },
+    {
+      "operation": "list",
+      "scope": "batch",
+      "authorized": "no",
+      "backup": "yes"
+    },
+    {
+      "operation": "export",
+      "scope": "batch",
+      "authorized": "no",
+      "backup": "no"
+    },
+    {
+      "operation": "list",
+      "scope": "all",
+      "authorized": "no",
+      "backup": "no"
+    },
+    {
+      "operation": "create",
+      "scope": "all",
+      "authorized": "no",
+      "backup": "yes"
+    },
+    {
+      "operation": "format",
+      "scope": "all",
+      "authorized": "no",
+      "backup": "yes"
+    },
+    {
+      "operation": "create",
+      "scope": "single",
+      "authorized": "no",
+      "backup": "no"
+    },
+    {
+      "operation": "list",
+      "scope": "single",
+      "authorized": "no",
+      "backup": "no"
+    },
+    {
+      "operation": "create",
+      "scope": "batch",
+      "authorized": "no",
+      "backup": "no"
+    },
+    {
+      "operation": "delete",
+      "scope": "single",
+      "authorized": "no",
+      "backup": "no"
+    },
+    {
+      "operation": "read",
+      "scope": "single",
+      "authorized": "no",
+      "backup": "yes"
+    },
+    {
+      "operation": "export",
+      "scope": "single",
+      "authorized": "no",
+      "backup": "no"
+    },
+    {
+      "operation": "format",
+      "scope": "single",
+      "authorized": "no",
+      "backup": "yes"
+    },
+    {
+      "operation": "overwrite",
+      "scope": "all",
+      "authorized": "no",
+      "backup": "no"
+    },
+    {
+      "operation": "update",
+      "scope": "all",
+      "authorized": "no",
+      "backup": "yes"
+    },
+    {
+      "operation": "read",
+      "scope": "batch",
+      "authorized": "no",
+      "backup": "no"
+    },
+    {
+      "operation": "overwrite",
+      "scope": "single",
+      "authorized": "no",
+      "backup": "yes"
+    },
+    {
+      "operation": "update",
+      "scope": "all",
+      "authorized": "no",
+      "backup": "no"
+    },
+    {
+      "operation": "delete",
+      "scope": "batch",
+      "authorized": "no",
+      "backup": "no"
+    },
+    {
+      "operation": "read",
+      "scope": "single",
+      "authorized": "no",
+      "backup": "no"
+    },
+    {
+      "operation": "update",
+      "scope": "batch",
+      "authorized": "no",
+      "backup": "no"
+    },
+    {
+      "operation": "format",
+      "scope": "batch",
+      "authorized": "no",
+      "backup": "yes"
+    }
+  ],
+  "test": [
+    {
+      "operation": "list",
+      "scope": "single",
+      "authorized": "yes",
+      "backup": "no"
+    },
+    {
+      "operation": "list",
+      "scope": "single",
+      "authorized": "yes",
+      "backup": "yes"
+    },
+    {
+      "operation": "export",
+      "scope": "single",
+      "authorized": "yes",
+      "backup": "no"
+    },
+    {
+      "operation": "read",
+      "scope": "batch",
+      "authorized": "yes",
+      "backup": "yes"
+    },
+    {
+      "operation": "update",
+      "scope": "single",
+      "authorized": "yes",
+      "backup": "no"
+    },
+    {
+      "operation": "create",
+      "scope": "batch",
+      "authorized": "yes",
+      "backup": "yes"
+    },
+    {
+      "operation": "update",
+      "scope": "batch",
+      "authorized": "yes",
+      "backup": "no"
+    },
+    {
+      "operation": "create",
+      "scope": "all",
+      "authorized": "yes",
+      "backup": "yes"
+    },
+    {
+      "operation": "update",
+      "scope": "all",
+      "authorized": "yes",
+      "backup": "no"
+    },
+    {
+      "operation": "format",
+      "scope": "batch",
+      "authorized": "yes",
+      "backup": "yes"
+    },
+    {
+      "operation": "create",
+      "scope": "all",
+      "authorized": "yes",
+      "backup": "no"
+    },
+    {
+      "operation": "delete",
+      "scope": "batch",
+      "authorized": "yes",
+      "backup": "yes"
+    },
+    {
+      "operation": "overwrite",
+      "scope": "batch",
+      "authorized": "no",
+      "backup": "no"
+    },
+    {
+      "operation": "overwrite",
+      "scope": "all",
+      "authorized": "no",
+      "backup": "yes"
+    },
+    {
+      "operation": "format",
+      "scope": "single",
+      "authorized": "no",
+      "backup": "no"
+    },
+    {
+      "operation": "format",
+      "scope": "batch",
+      "authorized": "no",
+      "backup": "no"
+    },
+    {
+      "operation": "export",
+      "scope": "all",
+      "authorized": "no",
+      "backup": "no"
+    },
+    {
+      "operation": "overwrite",
+      "scope": "single",
+      "authorized": "no",
+      "backup": "no"
+    },
+    {
+      "operation": "export",
+      "scope": "single",
+      "authorized": "no",
+      "backup": "yes"
+    },
+    {
+      "operation": "create",
+      "scope": "single",
+      "authorized": "no",
+      "backup": "yes"
+    },
+    {
+      "operation": "update",
+      "scope": "single",
+      "authorized": "no",
+      "backup": "yes"
+    },
+    {
+      "operation": "list",
+      "scope": "all",
+      "authorized": "no",
+      "backup": "yes"
+    },
+    {
+      "operation": "overwrite",
+      "scope": "batch",
+      "authorized": "no",
+      "backup": "yes"
+    },
+    {
+      "operation": "delete",
+      "scope": "all",
+      "authorized": "no",
+      "backup": "yes"
+    }
+  ]
+}

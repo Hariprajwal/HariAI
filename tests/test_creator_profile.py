@@ -19,7 +19,7 @@ class TestCreatorProfile(unittest.TestCase):
         resp_made = profile.answer_identity_question("Who made you?")
         self.assertEqual(
             resp_made,
-            "Hari made me! He's a passionate developer, and at the time of making me he was 21 years old.",
+            "K R Hari Prajwal created HariAI. He started building it when he was 21 years old.",
         )
 
         # "Who created you?"

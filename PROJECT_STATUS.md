@@ -1,3 +1,5 @@
+> **Historical research document:** Some capabilities and size claims below are unverified or obsolete. See [README.md](README.md) and [the live evaluation](docs/research/LIVE_CHAT_EVALUATION.md) for current results.
+
 # Project status
 
 **Stage:** Research prototype. **Updated:** November 2026.

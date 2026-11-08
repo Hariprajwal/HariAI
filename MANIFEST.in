@@ -1,0 +1,9 @@
+include LICENSE LICENSE-APACHE-2.0 THIRD_PARTY_NOTICES.md DATA_LICENSES.md
+include scripts/adapt_smollm.py scripts/adaptation_data.py scripts/gguf_training.py
+include scripts/train_operation_jev.py scripts/build_release.py
+include scripts/assemble_release.py
+include benchmarks/evaluate_local_model.py
+include docs/research/STANDALONE_MODEL_PLAN.md
+recursive-include hari_ai/assets *.gguf *.pt *.json *.md LICENSE*
+recursive-include hari_ai/vendor/open_jev LICENSE NOTICE.md
+global-exclude __pycache__ *.pyc

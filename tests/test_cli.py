@@ -24,7 +24,7 @@ class TestHariCLI(unittest.TestCase):
             text=True,
         )
         self.assertEqual(proc.returncode, 0)
-        self.assertIn("HariAI version 0.1.0", proc.stdout)
+        self.assertIn("HariAI version 0.2.0a1", proc.stdout)
 
     def test_cli_decide_command(self):
         proc = subprocess.run(

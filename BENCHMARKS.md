@@ -1,8 +1,16 @@
 # HariAI evaluation status
 
 The model weights, tokenizer, runtime, optional knowledge stores, peak RAM,
-and training compute are separate quantities. The current requirement is fewer
-than 35,000,000 bytes for the serialized neural model weights.
+and training compute are separate quantities. The original 35,000,000-byte
+research target is not met by the new approximately 92 MB standalone chat
+model. See [the current model card](hari_ai/assets/MODEL_CARD.md) and
+[research report](docs/research/STANDALONE_MODEL_PLAN.md) for the new work.
+
+The local Open-JEV operation experiment scored 21/24 on a finite synthetic
+development split (72 training records). Its majority baseline was 12/24.
+Canonical field ordering fixed a field-order sensitivity found in the upstream
+reference. The checkpoint is an advisory research component, not general
+reasoning or an authorization mechanism. Its confidence head is untrained.
 
 ## What has actually been measured
 

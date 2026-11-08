@@ -1,118 +1,151 @@
 # HariAI
 
-**A research project exploring compact language models and controlled continual learning.**
+**Local AI by K R Hari Prajwal — a standalone language model and experimental typed decisions.**
 
-HariAI aims to build a useful local assistant with neural model weights smaller
-than 35 MB. The repository contains a small Transformer, training and
-quantization experiments, a terminal interface, and the beginnings of a Dream
-Engine for evaluating candidate improvements.
+[![Python](https://img.shields.io/badge/Python-3.10%2B-blue)](https://www.python.org/)
+[![License](https://img.shields.io/badge/License-Noncommercial-orange)](LICENSE)
+[![Status](https://img.shields.io/badge/Status-Experimental_alpha-yellow)](docs/research/STANDALONE_MODEL_PLAN.md)
 
-> **Research prototype:** HariAI is not yet a general-purpose assistant and has
-> not demonstrated ChatGPT-level performance. The experimental checkpoints are
-> not included in this repository. The Dream controller does not automatically
-> train or improve the model.
+HariAI runs a local GGUF model directly in Python. On the development machine,
+the model file is already available and chat needs no Ollama service or network.
+The model-bearing release wheel has **not** been published or approved: the
+current models failed quality checks and model files are excluded from Git.
 
-## What is here today
+The language model is derived from **Hugging Face SmolLM-135M-Instruct**. HariAI's
+adaptation, runtime and packaging are by **K R Hari Prajwal**. Upstream model
+credit and licensing are preserved. This is an experimental small assistant,
+not a ChatGPT-equivalent foundation model trained from scratch.
 
-- **HariNano:** a from-scratch Transformer and byte-fallback tokenizer for
-  experiments with small models and INT4 storage.
-- **Local chat integration:** when Ollama and a compatible local model are
-  available, chat can use that model. Ollama models are separate downloads and
-  can be much larger than HariNano's 35 MB target.
-- **Dream research:** an offline LoRA candidate experiment with arithmetic
-  replay and held-out regression checks. Candidates are never automatically
-  promoted. The interactive `dream now` command currently inspects memory only.
-- **Explicit local memory:** save, inspect and delete individual memories.
-  Saved memories are stored in plaintext on the local machine and are not
-  automatically used for model training.
-- **Reproducible probes:** scripts record checkpoint size, generated answers,
-  data and checkpoint hashes, and narrow held-out scores.
+## Start chatting
 
-## Quick start
+Requires Python 3.10+ and the native `llama-cpp-python` runtime. The development checkout can use an existing compatible model file:
 
-Requires Python 3.9 or newer, PyTorch and NumPy. From a clone of this repository:
+```powershell
+python -m pip install -e .
+python -m hari_ai.cli ask "Hello!"
+python -m hari_ai.cli
+```
+
+No wheel or model is published yet. A fresh clone requires a compatible ChatML
+GGUF file configured with `hari settings model-file PATH`; Git does not include it.
+For the development checkout with the local model present:
 
 ```bash
 python -m pip install -e .
-python -m hari_ai.cli info
-python -m hari_ai.cli dream now
+python -m hari_ai.cli ask "Explain a Python list"
 ```
 
-On Windows you can start the interactive CLI with `./hari.bat`. For general
-chat, start [Ollama](https://ollama.com/) and install a compatible chat model,
-then run `python -m hari_ai.cli`. Select a model explicitly if needed:
-
-```powershell
-$env:HARIAI_OLLAMA_MODEL = "your-installed-model-name"
-python -m hari_ai.cli ask "Explain recursion"
-```
-
-The name must match `ollama list`. Set `HARIAI_OLLAMA_HOST` if the service uses
-a non-default URL. Without a reachable model, the chat command explains that it
-cannot answer general questions. Responses from a model can be wrong.
-
-### Local memory
+If compiling the native runtime is inconvenient, its maintainers document
+[CPU wheels](https://github.com/abetlen/llama-cpp-python#installation):
 
 ```bash
-python -m hari_ai.cli memory add "I prefer concise explanations"
-python -m hari_ai.cli memory inspect
-python -m hari_ai.cli memory delete 1
+python -m pip install llama-cpp-python --extra-index-url https://abetlen.github.io/llama-cpp-python/whl/cpu
 ```
 
-These are deliberate saves, not automatic collection from chat. Memory is stored
-as plaintext in `~/.hari_ai/memory.sqlite3`; set `HARIAI_DATA_DIR` to choose a
-different directory. Do not save passwords or secrets. `memory clear` clears
-session working memory; delete saved entries individually with their IDs.
+Large model files are excluded from normal Git commits. A plain source clone
+needs a release model or an explicitly configured compatible ChatML GGUF:
 
-## Research results
+```bash
+hari settings model-file /path/to/hariai-chat.gguf
+hari settings backend local
+```
 
-| Experiment | Result | What it shows |
+## What is included
+
+| Component | Purpose | Current limit |
 | --- | --- | --- |
-| Arithmetic student | 33/42 held-out arithmetic questions after INT4; 581,380-byte checkpoint | Narrow addition and subtraction only |
-| Language pilot | Held-out loss 5.714 → 1.855 nats per byte token; 1,473,688-byte INT4 checkpoint | Learned text patterns; scored 0/8 on a small mixed prompt probe |
-| Dream candidate | 33/42 → 35/42 arithmetic after INT4; language regression exceeded the gate | Candidate rejected; active checkpoint unchanged |
+| Local language model | Experimental conversation | About 92 MB; failed basic arithmetic, factual and coding checks |
+| Open-JEV reference | Typed decision architecture, packaged with attribution | Not TypeSafe AI's production Jev model |
+| Operation-policy experiment | A small trained Open-JEV classifier for a fixed JSON schema | Checkpoint is local and excluded from Git; advisory only |
+| Memory | Explicit local save, inspect and delete | Plaintext; not automatically used for training |
+| Dream research | Inspect experiences and run separate candidate experiments | No automatic self-improvement or production checkpoint promotion |
+| Original Nano | Archived research implementation, explicitly selectable | Failed general-chat probes; no longer the default |
 
-These are small local experiments, not standard model benchmarks. Checkpoints
-and sampled training data are Git-ignored; results cannot be independently
-reproduced from this repository alone until their source data is obtained and
-the training scripts are run. See [BENCHMARKS.md](BENCHMARKS.md), the
-[35 MB research plan](docs/research/35MB_GENERAL_ASSISTANT_PLAN.md), and the
-[Dream Engine status](docs/research/DREAM_ENGINE_STATUS.md).
+The original 35 MB target is **not met** by the chat model. File size, installed
+Python dependencies, and peak memory are different measurements. See the
+[standalone model research](docs/research/STANDALONE_MODEL_PLAN.md) and the
+[live conversation report](docs/research/LIVE_CHAT_EVALUATION.md) for actual responses.
 
-## Project layout
+The original README from `master` is preserved as [a historical document](docs/MASTER_README_HISTORICAL.md). It contains outdated capability claims; this README records the current results.
 
-```text
-hari_ai/model/          Transformer configuration and layers
-hari_ai/tokenizer/      Byte-fallback BPE tokenizer
-hari_ai/trainer/        Training infrastructure
-hari_ai/dream/          Experimental adaptation and sleep controller
-hari_ai/memory/         Session memory and opt-in local storage
-hari_ai/quantization/   Experimental packed INT4 export
-benchmarks/             Checkpoint inspection and small probes
-scripts/                Data collection and training experiments
+## Python API
+
+```python
+from hari_ai import HariAI
+
+ai = HariAI()  # Requires a local GGUF file; no Ollama service
+print(ai.ask("Explain recursion in two sentences."))
+print(ai.ask("Give a small example."))  # Retains this session's context
+
+# Requires the locally trained operation checkpoint, which is not in Git.
+# This separate, bounded typed-decision task never performs the operation.
+result = ai.decide_operation({
+    "operation": "delete",
+    "scope": "all",
+    "authorized": "yes",
+    "backup": "no",
+})
+print(result)
 ```
 
-Run the test suite with `python -m unittest discover tests`. Research scripts
-that collect data require network access and record source metadata; review the
-relevant dataset and teacher terms before use or redistribution. Model files
-loaded with PyTorch must come from a trusted source.
+The operation model accepts `read`, `list`, `create`, `update`, `delete`,
+`format`, `overwrite`, or `export`; `scope` is `single`, `batch`, or `all`;
+`authorized` and `backup` are `yes` or `no`. It returns a choice from `proceed`,
+`review`, and `stop`. Its probabilities are not calibrated correctness scores.
+Use actual program permissions to control actions. General `decide` calls need
+a separately trained checkpoint matching the intended task.
 
-## Limits and roadmap
+## Settings and local memory
 
-HariAI still needs broad language and instruction training, reliable evaluation
-on held-out conversation and coding tasks, true resource-aware scheduling,
-privacy and retention controls, and a robust checkpoint promotion and rollback
-system. It does not currently verify arbitrary answers or execute generated
-code in a security sandbox. See [DREAM_ENGINE_STATUS.md](docs/research/DREAM_ENGINE_STATUS.md)
-for the implemented experiment and remaining work.
+The default backend is `local`. An existing Ollama installation remains optional:
 
-## License and contact
+```bash
+hari settings show
+hari settings list-models
+hari settings ollama-model your-installed-model
+hari settings backend ollama
+hari settings backend local
+hari memory add "I prefer concise explanations"
+hari memory inspect
+hari memory delete 1
+```
 
-The current software is available under the [HariAI Noncommercial License](LICENSE).
-Commercial use requires a separate written agreement with K R Hari Prajwal;
-contact the creator through [GitHub](https://github.com/Hariprajwal). The project is source-available; the commercial
-restriction means it is not open source under the OSI definition. Previous
-versions were offered under Apache 2.0 and earlier license grants are not revoked.
-Third-party models, datasets and dependencies have their own terms.
+Settings and saved memories live in `~/.hari_ai`, or `HARIAI_DATA_DIR` when set.
+Chat history is held in the session. Saved memories are plaintext and are not
+fed into training automatically. The separate `search` command uses the network;
+ordinary local chat does not.
 
-Created by [K R Hari Prajwal](https://github.com/Hariprajwal).
+## Reproduce and evaluate
+
+```bash
+python -m unittest discover tests
+python scripts/adapt_smollm.py --base /path/to/original-smollm.gguf --output checkpoints/my-candidate --steps 300
+python scripts/train_operation_jev.py
+python scripts/assemble_release.py /path/to/passing-candidate --fresh-report /path/to/report.json
+python scripts/build_release.py
+```
+
+Training is offline once the base file and dependencies are installed. Candidate
+scripts write separate checkpoints and reports. They do not replace the active
+model. Small development probes are not evidence of general benchmark accuracy.
+Candidates must pass release gates, and model files must match their manifest hashes before building. No candidate has passed these gates yet.
+
+The new model work supersedes earlier claims about a verified general assistant
+under 35/45 MB. Historical experiments are retained in [BENCHMARKS.md](BENCHMARKS.md)
+and [Dream research status](docs/research/DREAM_ENGINE_STATUS.md).
+
+## Attribution and license
+
+Created and maintained by [K R Hari Prajwal](https://github.com/Hariprajwal).
+HariAI software and HariAI-specific modifications use the
+[HariAI Noncommercial License](LICENSE). Commercial use of those portions
+requires a separate written agreement with the creator.
+
+SmolLM's upstream weights and the vendored Open-JEV implementation retain their
+Apache 2.0 terms. See [third-party notices](THIRD_PARTY_NOTICES.md), the bundled
+model license, and [data provenance](DATA_LICENSES.md). The HariAI commercial
+restriction does not revoke upstream rights or earlier Apache grants. This
+project is source-available, not OSI open source.
+
+Report problems through [GitHub Issues](https://github.com/Hariprajwal/HariAI/issues),
+including package version, platform, model hash and a reproducible prompt.
