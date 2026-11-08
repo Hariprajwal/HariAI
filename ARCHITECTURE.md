@@ -1,3 +1,5 @@
+> **Historical research document:** Some capabilities and size claims below are unverified or obsolete. See [README.md](README.md) and [the live evaluation](docs/research/LIVE_CHAT_EVALUATION.md) for current results.
+
 # HariAI — Unified Adaptive Intelligence Architecture (UAIA) & Dream Engine
 > Historical design specification: many capabilities below remain proposals.
 > See [PROJECT_STATUS.md](PROJECT_STATUS.md) and

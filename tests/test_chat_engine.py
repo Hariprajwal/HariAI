@@ -1,4 +1,4 @@
-"""Chat routing uses Nano by default and Ollama only when selected."""
+"""Local model streaming and explicitly selected research/optional backends."""
 import unittest
 from hari_ai.memory.hierarchy import HierarchicalMemoryManager
 from hari_ai.runtime.chat import ChatEngine
@@ -23,18 +23,44 @@ class FakeOllama:
         return 'Ollama response'
 
 
+class FakeLocal:
+    def __init__(self):
+        self.calls = []
+    def chat_stream(self, messages):
+        self.calls.append(messages)
+        yield 'Hello '
+        yield 'from HariAI.'
+
+
 class TestChatEngine(unittest.TestCase):
     def setUp(self):
         self.nano, self.ollama = FakeNano(), FakeOllama()
         self.chat = ChatEngine(memory_manager=HierarchicalMemoryManager(),
-            inference_engine=self.nano, ollama_client=self.ollama, settings=ChatSettings())
+            inference_engine=self.nano, ollama_client=self.ollama, settings=ChatSettings(backend='nano'))
 
-    def test_nano_is_default_and_generates_response(self):
+    def test_explicit_research_nano_generates_response(self):
         result = ''.join(self.chat.chat_stream('Explain recursion'))
         self.assertEqual(result, 'Nano response')
         self.assertEqual(self.nano.prompts, ['User: Explain recursion\nHariAI:'])
         self.assertEqual(self.ollama.calls, [])
         self.assertNotIn('confidence', result.lower())
+
+    def test_default_local_streams_and_retains_history_without_ollama(self):
+        local = FakeLocal()
+        chat = ChatEngine(settings=ChatSettings(), local_model=local, ollama_client=self.ollama)
+        self.assertEqual(list(chat.chat_stream('Hello')), ['Hello ', 'from HariAI.'])
+        self.assertEqual(''.join(chat.chat_stream('Tell me more')), 'Hello from HariAI.')
+        self.assertEqual(local.calls[-1][-2], {'role': 'assistant', 'content': 'Hello from HariAI.'})
+        self.assertEqual(self.ollama.calls, [])
+        self.assertIn('K R Hari Prajwal', chat.system_prompt)
+
+    def test_local_failure_does_not_pollute_history(self):
+        class Missing:
+            def chat_stream(self, messages):
+                raise FileNotFoundError('missing model')
+        chat = ChatEngine(settings=ChatSettings(), local_model=Missing())
+        self.assertIn('missing model', ''.join(chat.chat_stream('Hello')))
+        self.assertEqual(len(chat.history), 1)
 
     def test_ollama_only_when_selected_and_keeps_context(self):
         self.chat.settings.backend = 'ollama'

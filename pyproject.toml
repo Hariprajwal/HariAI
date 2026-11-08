@@ -4,16 +4,18 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "hari-ai"
-version = "0.1.0"
-description = "HariAI: compact language model research and experimental continual learning"
+version = "0.2.0a1"
+description = "HariAI: standalone local conversation and experimental typed decision models"
 authors = [
     { name = "K R Hari Prajwal" }
 ]
 readme = "README.md"
-requires-python = ">=3.9"
+requires-python = ">=3.10"
+license = {file = "LICENSE"}
 dependencies = [
-    "torch>=2.0.0",
+    "torch>=2.2.0",
     "numpy>=1.20.0",
+    "llama-cpp-python>=0.3.8",
 ]
 keywords = ["ai", "transformer", "slm", "small-language-model", "decision-engine", "edge-ai"]
 classifiers = [
@@ -23,11 +25,15 @@ classifiers = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/Hariprajwal"
+Homepage = "https://github.com/Hariprajwal/HariAI"
+Issues = "https://github.com/Hariprajwal/HariAI/issues"
 
 [project.scripts]
 hari = "hari_ai.cli.main:main"
 
 [tool.setuptools.packages.find]
 include = ["hari_ai*"]
+
+[tool.setuptools.package-data]
+hari_ai = ["assets/*.gguf", "assets/*.pt", "assets/*.json", "assets/*.md", "assets/LICENSE*", "vendor/open_jev/LICENSE", "vendor/open_jev/NOTICE.md"]
 

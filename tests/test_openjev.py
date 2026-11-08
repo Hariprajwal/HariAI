@@ -4,7 +4,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 import torch
-from hari_ai.runtime.openjev import OpenJevAdapter
+from hari_ai.runtime.openjev import OpenJevAdapter, OperationDecisionModel, canonical_state
 
 
 class FakeChoice:
@@ -31,6 +31,18 @@ class FakeModel(torch.nn.Module):
 
 
 class OpenJevTests(unittest.TestCase):
+    def test_json_field_order_is_canonicalized(self):
+        left = {'b': {'y': 1, 'a': 2}, 'a': ['z', 'a']}
+        right = {'a': ['z', 'a'], 'b': {'a': 2, 'y': 1}}
+        self.assertEqual(repr(canonical_state(left)), repr(canonical_state(right)))
+
+    def test_bounded_operation_model_rejects_unsupported_tasks(self):
+        model = OperationDecisionModel()
+        with self.assertRaises(ValueError):
+            model.decide({'question': 'What is the capital of Japan?'})
+        with self.assertRaises(ValueError):
+            model.decide({'operation': 'launch', 'scope': 'single', 'authorized': 'yes', 'backup': 'yes'})
+
     def test_requires_trained_checkpoint(self):
         with self.assertRaises(ValueError):
             OpenJevAdapter('')

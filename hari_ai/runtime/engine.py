@@ -166,7 +166,22 @@ class InferenceEngine:
 class HariAI:
     """Official Public Python SDK for HariAI."""
 
-    def __init__(self, model_name: str = "nano", **kwargs):
+    def __init__(self, model_name: str = "local", **kwargs):
+        self.chat = None
+        if model_name in ('local', 'ollama'):
+            from hari_ai.runtime.chat import ChatEngine
+            from hari_ai.runtime.settings import load_settings
+            settings = load_settings()
+            settings.backend = model_name
+            if 'model_path' in kwargs:
+                settings.model_file = str(kwargs.pop('model_path'))
+            if kwargs:
+                raise TypeError(f'Unsupported arguments for {model_name}: {list(kwargs)}')
+            self.chat = ChatEngine(settings=settings)
+            self.engine = self.chat.local_model if model_name == 'local' else None
+            self.creator_profile = get_creator_profile()
+            self.use_ollama = model_name == 'ollama'
+            return
         self.engine = InferenceEngine(model_path_or_name='nano' if model_name == 'ollama' else model_name, **kwargs)
         self.creator_profile = get_creator_profile()
         self.ollama = OllamaClient()
@@ -174,6 +189,8 @@ class HariAI:
 
     def ask(self, question: str) -> str:
         """Fast answer to general questions, with dynamic identity resolution."""
+        if self.chat is not None:
+            return ''.join(self.chat.chat_stream(question))
         # Intercept creator identity questions
         identity_resp = self.creator_profile.answer_identity_question(question)
         if identity_resp:
@@ -204,8 +221,18 @@ class HariAI:
             "assistant yet. Start Ollama and set HARIAI_OLLAMA_MODEL if needed."
         )
 
+    def decide_operation(self, state: Dict[str, str]) -> Dict[str, Any]:
+        """Run the bundled Open-JEV bounded policy model, without taking actions."""
+        from hari_ai.runtime.openjev import OperationDecisionModel
+        if not hasattr(self, '_operation_model'):
+            self._operation_model = OperationDecisionModel()
+        return self._operation_model.decide(state)
+
     def think(self, problem: str) -> Dict[str, str]:
         """Deliberative 5-stage reasoning loop: Analysis -> Plan -> Solve -> Verify -> Self-Correct."""
+        if self.chat is not None:
+            return {'result': self.ask('Please reason carefully about: ' + problem),
+                    'thought': '', 'verification': 'not independently verified'}
         # Step 1: Understand problem & constraints
         analysis = self.engine.generate(
             f"Identify problem type and constraints for: {problem}",
@@ -268,6 +295,15 @@ class HariAI:
         self, situation: str, actions: Optional[List[str]] = None
     ) -> Dict[str, Any]:
         """Open-JEV style single-forward-pass typed decision readout."""
+        if self.chat is not None:
+            from hari_ai.runtime.openjev import OpenJevAdapter
+            path = self.chat.settings.openjev_checkpoint
+            if not path:
+                raise ValueError('Typed decisions require a separately trained Open-JEV checkpoint. '
+                                 'The bundled language model does not provide calibrated decisions.')
+            if not actions:
+                raise ValueError('Supply at least two choices for your trained decision task.')
+            return OpenJevAdapter(path).decide({'situation': situation}, 'Which action?', actions)
         action_candidates = actions or ["retry", "debug", "proceed", "request_approval", "stop"]
 
         # Run model forward pass on encoded situation

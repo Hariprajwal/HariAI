@@ -33,10 +33,10 @@ BANNER = r"""
     |  _  | (_| | |  | | | |_| |
     |_| |_|\__,_|_|  |_|  \___/ 
 
-        Tiny in size.
-        Big in intelligence.
+        Local conversation.
+        Created by K R Hari Prajwal.
 
-HariNano v0.1.0
+HariAI v0.2.0a1
 """
 
 # Global memory, dream controller, search engine, and chat engine singletons for local session
@@ -74,12 +74,13 @@ def cmd_info() -> None:
     print(f" Creation Age:   {profile.creation_age} years old (At creation)")
     print(f" Statement:      \"{profile.official_statement}\"")
     print(f" GitHub:         {profile.github_url}")
-    print(f" Target Model:   Under 35 MB (Complete Neural Weights)")
+    print(" Chat Model:     Standalone SmolLM-derived GGUF, approximately 92 MB")
+    print(" Research goal:  Under 35 MB (not achieved by this chat model)")
     print("=" * 60 + "\n")
 
 
 def cmd_version() -> None:
-    print("HariAI version 0.1.0 (HariNano research, < 35 MB target)")
+    print("HariAI version 0.2.0a1 (standalone local GGUF)")
 
 
 def cmd_search(query: str) -> None:
@@ -101,118 +102,14 @@ def cmd_ask(prompt: str, stream: bool = False) -> None:
         print(response)
 
 
-def _is_coherent(text: str) -> bool:
-    """Checks whether the generated text has semantic coherence rather than untrained noise."""
-    if not text or len(text.strip()) < 5:
-        return False
-    words = [w for w in text.split() if any(c.isalnum() for c in w)]
-    if len(words) < 3:
-        return False
-    if text.count("?") > max(2, len(text) * 0.12):
-        return False
-    return True
-
-
 def cmd_think(prompt: str, llm: Optional[Any] = None) -> str:
-    """Deliberate 5-stage reasoning loop: Analysis -> Plan -> Solve -> Verify -> Self-Correct."""
+    """Request careful reasoning; model output is not independently verified."""
     if llm is None:
-        answer = "".join(_CHAT_ENGINE.chat_stream("Please reason carefully about: " + prompt))
-        print(answer)
-        return answer
-    if llm is None:
-        llm = _CHAT_ENGINE.engine
-
-    # Step 1: Understand the problem
-    raw_analysis = llm.generate(f"""
-    Identify the problem type.
-    List the constraints and important information.
-
-    Problem: {prompt}
-    """).strip()
-    if _is_coherent(raw_analysis):
-        analysis = raw_analysis
+        answer = ''.join(_CHAT_ENGINE.chat_stream('Please reason carefully about: ' + prompt))
     else:
-        analysis = (
-            f"1. Problem Classification: Computational & Algorithmic Reasoning.\n"
-            f"2. Core Invariants: Well-defined state transitions, boundary limits, and data integrity.\n"
-            f"3. Objective: Rigorously solve '{prompt}' with minimal computational complexity."
-        )
-
-    # Step 2: Decompose the problem
-    raw_plan = llm.generate(f"""
-    Break this problem into smaller solvable steps.
-
-    Analysis:
-    {analysis}
-    """).strip()
-    if _is_coherent(raw_plan):
-        plan = raw_plan
-    else:
-        plan = (
-            f"1. Formalize input invariants and boundary conditions for '{prompt}'.\n"
-            f"2. Decompose into solvable sub-problems via recursive/inductive partitioning.\n"
-            f"3. Derive closed-form mathematical logic or optimal algorithmic routine.\n"
-            f"4. Subject proposed derivation to adversarial invariant verification."
-        )
-
-    # Step 3: Solve the problem
-    raw_solution = llm.generate(f"""
-    Solve the problem using this plan.
-
-    Problem: {prompt}
-    Plan: {plan}
-
-    Give a logically consistent solution.
-    """).strip()
-    if _is_coherent(raw_solution):
-        solution = raw_solution
-    else:
-        solution = (
-            f"Deductive resolution for '{prompt}':\n"
-            f"- Base Case / Initial State: Boundary conditions verified at t=0.\n"
-            f"- Transformation Step: Applying optimal transition rules preserves system invariants.\n"
-            f"- Termination: Guarantees convergence in optimal asymptotic complexity.\n"
-            f"- Q.E.D.: Rigorously consistent and verified across edge cases."
-        )
-
-    # Step 4: Verify the solution
-    raw_verification = llm.generate(f"""
-    Independently check this proposed solution.
-
-    Original problem: {prompt}
-    Proposed solution: {solution}
-
-    Identify errors or missing steps.
-    Return PASS or FAIL with a short explanation.
-    """).strip()
-    if _is_coherent(raw_verification):
-        verification = raw_verification
-    else:
-        verification = "PASS: All deductive invariants and boundary conditions verified without error."
-
-    # Step 5: Correct if necessary
-    if "FAIL" in verification.upper():
-        raw_corrected = llm.generate(f"""
-        Correct the solution using this feedback.
-
-        Problem: {prompt}
-        Previous solution: {solution}
-        Feedback: {verification}
-        """).strip()
-        if _is_coherent(raw_corrected):
-            solution = raw_corrected
-
-    print("<|thought|>")
-    print(f"Decomposing problem: '{prompt}'\n")
-    print(f"[Stage 1 - Analysis & Constraints]:\n{analysis}\n")
-    print(f"[Stage 2 - Solvable Decomposition Plan]:\n{plan}\n")
-    print(f"[Stage 3 - Solution Derivation]:\n{solution}\n")
-    print(f"[Stage 4 - Independent Verification]:\n{verification}")
-    print("</thought>\n")
-    print(f"[Verified Solution]:\n{solution}\n")
-    print("\033[90m[Confidence: 98.4% | HariNano Deliberative Engine]\033[0m")
-
-    return solution
+        answer = llm.generate('Please reason carefully about: ' + prompt).strip()
+    print(answer or 'The model produced no answer.')
+    return answer
 
 
 def cmd_decide(situation: str) -> None:
@@ -255,6 +152,16 @@ def cmd_decide(situation: str) -> None:
 def cmd_code(task: str) -> None:
     """Request code from the configured chat backend without claiming verification."""
     cmd_ask("Write code for the following request. State any assumptions: " + task)
+
+
+def cmd_operation(value: str) -> None:
+    """Evaluate one bounded JSON record with the bundled Open-JEV model."""
+    from hari_ai.runtime.openjev import OperationDecisionModel
+    try:
+        result = OperationDecisionModel().decide(json.loads(value))
+        print(json.dumps(result, indent=2))
+    except (OSError, ValueError, RuntimeError) as exc:
+        print(f'Operation decision unavailable: {exc}')
 
 
 def cmd_memory(args: List[str]) -> None:
@@ -322,13 +229,13 @@ def cmd_settings(args: List[str]) -> None:
         return
     mapping = {'backend': 'backend', 'ollama-model': 'ollama_model', 'ollama-host': 'ollama_host',
                'nano-checkpoint': 'nano_checkpoint', 'nano-tokenizer': 'nano_tokenizer',
-               'openjev-checkpoint': 'openjev_checkpoint'}
+               'openjev-checkpoint': 'openjev_checkpoint', 'model-file': 'model_file'}
     if args[0] not in mapping or len(args) < 2:
-        print('Usage: hari settings show | list-models | backend nano|ollama | ollama-model NAME | ollama-host URL | nano-model CHECKPOINT TOKENIZER | openjev-checkpoint PATH')
+        print('Usage: hari settings show | list-models | backend local|nano|ollama | model-file PATH.gguf | ollama-model NAME | ollama-host URL | nano-model CHECKPOINT TOKENIZER | openjev-checkpoint PATH')
         return
     field = mapping[args[0]]
     value = ' '.join(args[1:])
-    if field.endswith('checkpoint') or field == 'nano_tokenizer':
+    if field.endswith('checkpoint') or field in ('nano_tokenizer', 'model_file'):
         value = str(Path(value).expanduser().resolve())
         if not Path(value).is_file():
             print(f'File not found: {value}')
@@ -391,8 +298,8 @@ def repl() -> None:
             print("  /search <query>     - Web/Local search & AI research summarization")
             print("  /think <problem>    - Deliberate reasoning mode (<|thought|>)")
             print("  /decide <situation> - Open-JEV typed single-forward-pass decision evaluation")
-            print("  /code <task>        - Verifiable code generation with assertions")
-            print("  /dream [now|status] - Trigger Dream Engine sleep consolidation")
+            print("  /code <task>        - Request code from the local model")
+            print("  /dream [now|status] - Inspect Dream research status")
             print("  /memory [status]    - Inspect hierarchical memory levels")
             print("  /settings [show|backend|ollama-model|list-models] - Configure chat backend")
             print("  /clear              - Reset multi-turn conversation context")
@@ -451,6 +358,8 @@ def main():
         cmd_decide(" ".join(all_args))
     elif cmd == "code":
         cmd_code(" ".join(all_args))
+    elif cmd == 'check-operation':
+        cmd_operation(' '.join(all_args))
     elif cmd == "search":
         cmd_search(" ".join(all_args))
     elif cmd == "info":
@@ -464,7 +373,7 @@ def main():
     elif cmd == "settings":
         cmd_settings(all_args)
     elif cmd in ["help", "-h", "--help"]:
-        print("Usage: hari [run|ask|think|decide|code|memory|dream|settings|info|version|help]")
+        print("Usage: hari [run|ask|think|decide|check-operation|code|memory|dream|settings|info|version|help]")
     else:
         # Default behavior: treat unknown arguments as direct interactive prompt
         full_query = " ".join([parsed.command] + all_args)
