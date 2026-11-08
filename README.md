@@ -26,6 +26,10 @@ python -m hari_ai.cli ask "Hello!"
 python -m hari_ai.cli
 ```
 
+After changing the local code, enter `/exit` and start the app again. Enter
+`/version` inside chat to check the running app version. The version number is
+for the application; it does not imply that a new language model was trained.
+
 No wheel or model is published yet. A fresh clone requires a compatible ChatML
 GGUF file configured with `hari settings model-file PATH`; Git does not include it.
 For the development checkout with the local model present:
@@ -114,6 +118,32 @@ Settings and saved memories live in `~/.hari_ai`, or `HARIAI_DATA_DIR` when set.
 Chat history is held in the session. Saved memories are plaintext and are not
 fed into training automatically. The separate `search` command uses the network;
 ordinary local chat does not.
+
+The CLI shows the **average base-model token likelihood** after local
+model-generated replies. For example, `Token likelihood: 83% (not answer
+accuracy)` means the model assigned its generated tokens an average probability
+of 83% before sampling adjustments. This is a language-prediction signal, not
+a calibrated probability that the answer is correct. The line is grey in an
+interactive terminal. Hard-coded replies or unsupported runtimes show
+`Token likelihood: unavailable`. The lightweight observer is currently checked
+against `llama-cpp-python` 0.3.8; other versions still run chat but omit this
+score until their sampling interface is verified. Use
+`hari settings confidence off` to hide it or `hari settings confidence on` to
+show it again. See [confidence research](docs/research/CHAT_CONFIDENCE.md) and
+the [calibration system design](docs/research/CALIBRATED_CONFIDENCE_DESIGN.md).
+The [independent-model rebuild audit](docs/research/REBUILD_AUDIT_2026_11.md)
+separates the current SmolLM-derived chat baseline from scratch-training work.
+Run `hari status` or `/status` to see the active backend, model file and the
+actual state of the experimental learning and cluster features.
+Use `hari settings confidence-status` to see the current confidence coverage.
+For a complete, single-turn integer arithmetic question and an unambiguous
+number or matching equation, HariAI checks the calculation directly and shows either
+`100% (verified arithmetic)` or `0% (verified arithmetic)`. This is an exact
+check of that restricted answer, not the language model's self-confidence;
+when available, the separate token-likelihood line is shown as well.
+General-chat confidence has not been validated and remains unavailable.
+For an underspecified request such as “give me the C program”, HariAI asks what
+the program should do. The local language model can still generate invalid code.
 
 ## Reproduce and evaluate
 

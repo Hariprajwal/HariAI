@@ -1,3 +1,10 @@
+> **Historical document; not a license clearance or proof of model performance.**
+> Some tables below make unsupported generalizations. For example, the current
+> official Qwen2.5-3B-Instruct card identifies a Qwen Research license, while
+> Qwen2.5-7B-Instruct is listed under Apache 2.0; terms vary by exact model and
+> revision. Review original licenses and current provenance before any training
+> or distribution. See `DATA_LICENSES.md` and the newer rebuild audit.
+
 # HariAI Phase 0: Master Research Specification & Feasibility Report
 **Document ID:** `HARIAI-SPEC-PHASE0-V1`  
 **Author:** AI Research Architect & Systems Engineering Team  

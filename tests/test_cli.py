@@ -1,11 +1,55 @@
 """Unit tests for the HariAI standalone CLI interface."""
 
 import subprocess
+import io
+import importlib
+import os
 import sys
 import unittest
+from unittest.mock import patch
 
 
 class TestHariCLI(unittest.TestCase):
+    def test_confidence_is_grey_in_terminal_and_plain_with_no_color(self):
+        cli = importlib.import_module('hari_ai.cli.main')
+        class Terminal(io.StringIO):
+            def isatty(self):
+                return True
+        output = Terminal()
+        with patch.object(cli._CHAT_ENGINE.settings, 'show_confidence', True), \
+                patch.object(cli._CHAT_ENGINE, 'last_reply_succeeded', True), \
+                patch.object(cli.sys, 'stdout', output), patch.dict(os.environ, {}, clear=True):
+            cli._show_confidence_status()
+            self.assertEqual(output.getvalue(), '\x1b[90mToken likelihood: unavailable\x1b[0m\n')
+            output.seek(0)
+            output.truncate(0)
+            with patch.dict(os.environ, {'NO_COLOR': '1'}):
+                cli._show_confidence_status()
+                self.assertEqual(output.getvalue(), 'Token likelihood: unavailable\n')
+            output.seek(0)
+            output.truncate(0)
+            with patch.object(cli._CHAT_ENGINE, 'last_answer_confidence', .73):
+                cli._show_confidence_status()
+                self.assertEqual(output.getvalue(), '\x1b[90mConfidence: 73% (arithmetic only)\x1b[0m\n')
+            output.seek(0)
+            output.truncate(0)
+            with patch.object(cli._CHAT_ENGINE, 'last_answer_confidence', 0.0), \
+                    patch.object(cli._CHAT_ENGINE, 'last_confidence_source', 'verified arithmetic'):
+                cli._show_confidence_status()
+                self.assertEqual(output.getvalue(), '\x1b[90mConfidence: 0% (verified arithmetic)\x1b[0m\n')
+            output.seek(0)
+            output.truncate(0)
+            with patch.object(cli._CHAT_ENGINE, 'last_token_likelihood', .725):
+                cli._show_confidence_status()
+                self.assertEqual(output.getvalue(), '\x1b[90mToken likelihood: 72% (not answer accuracy)\x1b[0m\n')
+
+    def test_direct_identity_shows_unavailable_confidence(self):
+        proc = subprocess.run([sys.executable, '-m', 'hari_ai.cli', 'ask', 'who are u?'],
+                              capture_output=True, text=True)
+        self.assertEqual(proc.returncode, 0)
+        self.assertIn('K R Hari Prajwal', proc.stdout)
+        self.assertIn('Token likelihood: unavailable', proc.stdout)
+        self.assertNotIn('%', proc.stdout)
     def test_cli_info_command(self):
         proc = subprocess.run(
             [sys.executable, "-m", "hari_ai.cli", "info"],
@@ -17,6 +61,14 @@ class TestHariCLI(unittest.TestCase):
         self.assertIn("Under 35 MB", proc.stdout)
         self.assertIn("21 years old", proc.stdout)
 
+    def test_status_reports_real_backend_and_experimental_learning(self):
+        proc = subprocess.run([sys.executable, '-m', 'hari_ai.cli', 'status'],
+                              capture_output=True, text=True, timeout=30)
+        self.assertEqual(proc.returncode, 0)
+        self.assertIn('HariAI status', proc.stdout)
+        self.assertIn('no automatic model updates', proc.stdout)
+        self.assertIn('answer accuracy is not calibrated', proc.stdout)
+
     def test_cli_version_command(self):
         proc = subprocess.run(
             [sys.executable, "-m", "hari_ai.cli", "version"],
@@ -24,7 +76,16 @@ class TestHariCLI(unittest.TestCase):
             text=True,
         )
         self.assertEqual(proc.returncode, 0)
-        self.assertIn("HariAI version 0.2.0a1", proc.stdout)
+        from hari_ai.version import __version__
+        self.assertIn(f"HariAI version {__version__}", proc.stdout)
+
+    def test_repl_reports_running_version(self):
+        from hari_ai.version import __version__
+        proc = subprocess.run([sys.executable, '-m', 'hari_ai.cli'],
+                              input='/version\n/exit\n', capture_output=True, text=True, timeout=30)
+        self.assertEqual(proc.returncode, 0)
+        self.assertIn(f'HariAI v{__version__}', proc.stdout)
+        self.assertIn(f'HariAI version {__version__}', proc.stdout)
 
     def test_cli_decide_command(self):
         proc = subprocess.run(

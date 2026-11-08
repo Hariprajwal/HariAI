@@ -166,6 +166,16 @@ class TestUAIANanoArchitecture(unittest.TestCase):
         self.assertEqual(generated.shape, (1, 8))  # 3 prompt tokens + 5 new tokens
         self.assertTrue(torch.equal(generated[:, :3], prompt_ids))
 
+    def test_cached_multitoken_chunk_matches_full_causal_forward(self):
+        torch.manual_seed(17)
+        model = UAIANanoModel(self.micro_config).eval()
+        tokens = torch.tensor([[12, 19, 23, 42, 51, 60, 70]])
+        with torch.no_grad():
+            whole = model(tokens)['logits']
+            prefix = model(tokens[:, :3])
+            chunk = model(tokens[:, 3:], kv_caches=prefix['kv_caches'], start_pos=3)['logits']
+        self.assertTrue(torch.allclose(whole[:, 3:], chunk, atol=1e-5, rtol=1e-5))
+
 
 if __name__ == "__main__":
     unittest.main()

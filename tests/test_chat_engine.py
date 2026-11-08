@@ -61,6 +61,44 @@ class TestChatEngine(unittest.TestCase):
         chat = ChatEngine(settings=ChatSettings(), local_model=Missing())
         self.assertIn('missing model', ''.join(chat.chat_stream('Hello')))
         self.assertEqual(len(chat.history), 1)
+        self.assertFalse(chat.last_reply_succeeded)
+
+    def test_identity_shorthand_does_not_use_model(self):
+        local = FakeLocal()
+        chat = ChatEngine(settings=ChatSettings(), local_model=local)
+        answer = ''.join(chat.chat_stream('who are u?'))
+        self.assertIn('HariAI', answer)
+        self.assertIn('K R Hari Prajwal', answer)
+        self.assertTrue(chat.last_reply_succeeded)
+        self.assertEqual(local.calls, [])
+
+    def test_token_likelihood_is_not_reused_for_a_non_model_reply(self):
+        local = FakeLocal()
+        local.last_token_likelihood = .62
+        local.last_finish_reason = 'stop'
+        chat = ChatEngine(settings=ChatSettings(), local_model=local)
+        ''.join(chat.chat_stream('Hello'))
+        self.assertEqual(chat.last_token_likelihood, .62)
+        ''.join(chat.chat_stream('who are u?'))
+        self.assertIsNone(chat.last_token_likelihood)
+
+    def test_vague_c_program_request_asks_for_the_missing_task(self):
+        local = FakeLocal()
+        chat = ChatEngine(settings=ChatSettings(), local_model=local)
+        answer = ''.join(chat.chat_stream('ok give me the c program !?'))
+        self.assertIn('What should the C program do?', answer)
+        self.assertEqual(local.calls, [])
+        ''.join(chat.chat_stream('write a C program that implements binary search over a sorted list'))
+        self.assertEqual(len(local.calls), 1)
+        ''.join(chat.chat_stream('generate the full c program'))
+        self.assertEqual(len(local.calls), 2)
+
+    def test_direct_reply_clears_previous_token_limit_status(self):
+        local = FakeLocal()
+        local.last_finish_reason = 'length'
+        chat = ChatEngine(settings=ChatSettings(), local_model=local)
+        ''.join(chat.chat_stream('who are u?'))
+        self.assertIsNone(local.last_finish_reason)
 
     def test_ollama_only_when_selected_and_keeps_context(self):
         self.chat.settings.backend = 'ollama'

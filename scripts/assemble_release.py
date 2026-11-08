@@ -34,7 +34,10 @@ def main():
     for name in ['hariai-chat.gguf', 'operation_jev.pt']:
         path = assets/name
         files.append({'name':name, 'bytes':path.stat().st_size, 'sha256':hashlib.sha256(path.read_bytes()).hexdigest()})
-    manifest = {'version':'0.2.0a1', 'creator':'K R Hari Prajwal', 'architecture':'Two-component bundle; not merged incompatible architectures',
+    import sys
+    sys.path.insert(0, str(root))
+    from hari_ai.version import __version__
+    manifest = {'version':__version__, 'creator':'K R Hari Prajwal', 'architecture':'Two-component bundle; not merged incompatible architectures',
         'language_foundation':language['base'], 'base_sha256':language['base_sha256'],
         'language_adaptation':'Merged LoRA identity adaptation', 'files':files,
         'total_model_bytes':sum(f['bytes'] for f in files), 'runtime_service_required':False,

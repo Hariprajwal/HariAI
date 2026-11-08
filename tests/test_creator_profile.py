@@ -40,6 +40,18 @@ class TestCreatorProfile(unittest.TestCase):
             "https://github.com/Hariprajwal",
         )
 
+    def test_short_direct_identity_questions_and_capabilities(self):
+        profile = get_creator_profile()
+        for query in ('who are u?', 'hello who are you?', 'what r u?'):
+            with self.subTest(query=query):
+                answer = profile.answer_identity_question(query)
+                self.assertIn('HariAI', answer)
+                self.assertIn('K R Hari Prajwal', answer)
+                self.assertNotIn('human', answer)
+        self.assertIn('K R Hari Prajwal', profile.answer_identity_question('who made u?'))
+        self.assertIn('code', profile.answer_identity_question('what do u do basically?'))
+        self.assertIsNone(profile.answer_identity_question('Write a story titled Who are you'))
+
 
 if __name__ == "__main__":
     unittest.main()

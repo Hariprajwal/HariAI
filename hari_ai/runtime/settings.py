@@ -18,6 +18,8 @@ class ChatSettings:
     ollama_model: str = ''
     ollama_host: str = 'http://127.0.0.1:11434'
     openjev_checkpoint: str = ''
+    answer_confidence_artifact: str = ''
+    show_confidence: bool = True
 
     def validate(self) -> None:
         if self.schema_version != 2:
@@ -26,6 +28,8 @@ class ChatSettings:
             raise ValueError('backend must be local, nano (research), or ollama')
         if not self.ollama_host.startswith(('http://', 'https://')):
             raise ValueError('ollama_host must be an HTTP or HTTPS URL')
+        if not isinstance(self.show_confidence, bool):
+            raise ValueError('show_confidence must be true or false')
 
 
 def settings_path() -> Path:
