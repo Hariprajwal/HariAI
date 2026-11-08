@@ -2,7 +2,7 @@
 
 Enhanced with Jev-style typed decision readouts (Choice, Score, Noul):
 - Choice: Categorical action selection logits over discrete options
-- Score: Continuous calibrated confidence / uncertainty score in [0, 1]
+- Score: Raw sigmoid output in [0, 1], requiring task-specific calibration
 - Noul: Binary permission / termination gate in [0, 1] (e.g. human approval required)
 """
 
@@ -60,7 +60,7 @@ class StructuredDecisionHead(nn.Module):
         super().__init__()
         # Choice: Categorical action selection
         self.action_proj = nn.Linear(config.d_model, config.n_actions, bias=False)
-        # Score: Continuous calibrated confidence
+        # Score: raw task signal; calibration requires training and evaluation.
         self.confidence_proj = nn.Linear(config.d_model, 1, bias=True)
         # Noul: Binary permission / risk gating (requires human approval)
         self.permission_proj = nn.Linear(config.d_model, 1, bias=True)
@@ -173,10 +173,13 @@ class HariNanoModel(nn.Module):
         # Build causal mask if seq_len > 1
         mask = None
         if seq_len > 1:
+            # Cached keys precede this chunk and must remain visible to every
+            # new token; only future positions within the new chunk are masked.
+            past_len = kv_caches[0][0].shape[2] if kv_caches is not None else 0
             mask = torch.full(
-                (seq_len, seq_len), float("-inf"), device=input_ids.device
+                (seq_len, past_len + seq_len), float("-inf"), device=input_ids.device
             )
-            mask = torch.triu(mask, diagonal=1)
+            mask = torch.triu(mask, diagonal=past_len + 1)
 
         new_kv_caches = []
         for i, block in enumerate(self.blocks):

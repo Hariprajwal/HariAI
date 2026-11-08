@@ -26,7 +26,7 @@ class TestClusterSync(unittest.TestCase):
             package_id="exp-fact-1",
             task_type="fact",
             subject="HariAI Architecture",
-            claim_or_code="UAIA-Nano has 46.4M parameters and fits in under 50 MB.",
+            claim_or_code="HariNano has 46.4M parameters and fits in under 50 MB.",
             is_verified=True,
             verification_method="deterministic_spec",
             confidence=1.0,

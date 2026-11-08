@@ -1,7 +1,10 @@
 """Context retention and missing-model failures, independent of downloaded weights."""
 import tempfile
+import sys
+import types
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 from hari_ai.runtime.local_model import LocalModel
 
 
@@ -11,6 +14,32 @@ class TokenCounter:
 
 
 class LocalModelTests(unittest.TestCase):
+    def test_overlapping_streams_are_rejected_and_close_releases_lock(self):
+        class StreamModel(TokenCounter):
+            def create_chat_completion(self, **kwargs):
+                yield {'choices': [{'delta': {'content': 'first'}, 'finish_reason': None}]}
+                yield {'choices': [{'delta': {}, 'finish_reason': 'stop'}]}
+        model = LocalModel(context_size=100)
+        model._model = StreamModel()
+        messages = [{'role':'user', 'content':'hi'}]
+        first = model.chat_stream(messages, max_tokens=10)
+        self.assertEqual(next(first), 'first')
+        with self.assertRaisesRegex(RuntimeError, 'already generating'):
+            next(model.chat_stream(messages, max_tokens=10))
+        first.close()
+        self.assertEqual(''.join(model.chat_stream(messages, max_tokens=10)), 'first')
+
+    def test_length_finish_reason_is_recorded_for_the_current_turn(self):
+        class StreamModel(TokenCounter):
+            def create_chat_completion(self, **kwargs):
+                yield {'choices': [{'delta': {'content': 'partial'}, 'finish_reason': None}]}
+                yield {'choices': [{'delta': {}, 'finish_reason': 'length'}]}
+        model = LocalModel(context_size=100)
+        model._model = StreamModel()
+        result = ''.join(model.chat_stream([{'role': 'user', 'content': 'write code'}], max_tokens=10))
+        self.assertEqual(result, 'partial')
+        self.assertEqual(model.last_finish_reason, 'length')
+
     def test_drops_oldest_complete_turn(self):
         model = LocalModel(context_size=45)
         model._model = TokenCounter()
@@ -33,3 +62,23 @@ class LocalModelTests(unittest.TestCase):
             model = LocalModel(str(Path(folder) / 'absent.gguf'))
             with self.assertRaises(FileNotFoundError):
                 list(model.chat_stream([{'role': 'user', 'content': 'Hello'}]))
+
+    def test_unverified_llama_version_keeps_chat_but_disables_token_score(self):
+        class StubLlama(TokenCounter):
+            def __init__(self, **kwargs):
+                pass
+            def create_chat_completion(self, **kwargs):
+                yield {'choices':[{'delta':{'content':'answer'}, 'finish_reason':None}]}
+                yield {'choices':[{'delta':{}, 'finish_reason':'stop'}]}
+            def close(self):
+                pass
+        fake_module = types.SimpleNamespace(Llama=StubLlama, __version__='99.0')
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder)/'model.gguf'
+            path.write_bytes(b'placeholder')
+            model = LocalModel(str(path), context_size=100)
+            with patch.dict(sys.modules, {'llama_cpp':fake_module}):
+                self.assertEqual(''.join(model.chat_stream([{'role':'user','content':'hello'}], 10)), 'answer')
+            self.assertFalse(model._token_likelihood_compatible)
+            self.assertIsNone(model.last_token_likelihood)
+            model.close()

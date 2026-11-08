@@ -31,6 +31,14 @@ class TestRuntimeAndSDK(unittest.TestCase):
         backend = detect_best_hardware()
         self.assertIn(backend, [HardwareBackend.CPU_SIMD, HardwareBackend.CUDA, HardwareBackend.MPS])
 
+    def test_backend_device_mapping_does_not_silently_misreport_acceleration(self):
+        from hari_ai.runtime.engine import _torch_device_for_backend
+        self.assertEqual(_torch_device_for_backend(HardwareBackend.CPU_SIMD).type, 'cpu')
+        self.assertEqual(_torch_device_for_backend(HardwareBackend.CUDA).type, 'cuda')
+        self.assertEqual(_torch_device_for_backend(HardwareBackend.MPS).type, 'mps')
+        with self.assertRaises(NotImplementedError):
+            _torch_device_for_backend(HardwareBackend.DIRECTML)
+
     def test_hari_ai_sdk_ask_and_creator_identity(self):
         ai = HariAI("nano", config=self.micro_config)
 

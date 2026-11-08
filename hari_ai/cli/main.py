@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 import time
 from dataclasses import asdict
@@ -24,6 +25,7 @@ from hari_ai.runtime.chat import ChatEngine
 from hari_ai.search.engine import SearchEngine
 from hari_ai.memory.store import MemoryStore
 from hari_ai.runtime.settings import load_settings, save_settings, settings_path
+from hari_ai.version import __version__
 
 
 BANNER = r"""
@@ -36,8 +38,7 @@ BANNER = r"""
         Local conversation.
         Created by K R Hari Prajwal.
 
-HariAI v0.2.0a1
-"""
+""" + f"HariAI v{__version__}\n"
 
 # Global memory, dream controller, search engine, and chat engine singletons for local session
 _MEMORY_MANAGER = HierarchicalMemoryManager()
@@ -80,7 +81,33 @@ def cmd_info() -> None:
 
 
 def cmd_version() -> None:
-    print("HariAI version 0.2.0a1 (standalone local GGUF)")
+    print(f"HariAI version {__version__} (standalone local GGUF)")
+
+
+def cmd_status() -> None:
+    """Show observable runtime state without implying experimental features are active."""
+    settings = _CHAT_ENGINE.settings
+    print('\nHariAI status')
+    print(f'  Backend:     {settings.backend}')
+    if settings.backend == 'local':
+        from hari_ai.runtime.local_model import bundled_model_path
+        path = _CHAT_ENGINE.local_model.path
+        name = 'Bundled local GGUF' if path.resolve() == bundled_model_path().resolve() else 'Custom local model'
+        print(f'  Model:       {name}')
+        if path.is_file():
+            print(f'  Model file:  {path} ({path.stat().st_size / 1_000_000:.1f} MB)')
+        else:
+            print(f'  Model file:  missing ({path})')
+        print('  Inference:   CPU; no Ollama service required')
+    elif settings.backend == 'nano':
+        print(f'  Checkpoint:  {settings.nano_checkpoint or "not configured"}')
+    else:
+        print(f'  Model:       {settings.ollama_model or "not configured"}')
+        print('  Inference:   configured Ollama service')
+    print('  Confidence:  local token likelihood; answer accuracy is not calibrated')
+    print('  Learning:    research mode; no automatic model updates')
+    print('  Cluster:     prototype; chat has not started workers')
+    print('')
 
 
 def cmd_search(query: str) -> None:
@@ -88,6 +115,25 @@ def cmd_search(query: str) -> None:
     print(f"\n[HariNano Search Engine]: Gathering and synthesizing data for '{query}'...")
     summary = _SEARCH_ENGINE.search_and_summarize(query)
     print("\n" + summary + "\n")
+
+
+def _show_confidence_status() -> None:
+    if _CHAT_ENGINE.settings.show_confidence and _CHAT_ENGINE.last_reply_succeeded:
+        value = _CHAT_ENGINE.last_answer_confidence
+        source = getattr(_CHAT_ENGINE, 'last_confidence_source', None) or 'arithmetic only'
+        likelihood = getattr(_CHAT_ENGINE, 'last_token_likelihood', None)
+        messages = []
+        if value is not None:
+            messages.append(f'Confidence: {value:.0%} ({source})')
+        if likelihood is not None:
+            messages.append(f'Token likelihood: {likelihood:.0%} (not answer accuracy)')
+        elif value is None:
+            messages.append('Token likelihood: unavailable')
+        for message in messages:
+            if sys.stdout.isatty() and 'NO_COLOR' not in os.environ:
+                print(f'\033[90m{message}\033[0m')
+            else:
+                print(message)
 
 
 def cmd_ask(prompt: str, stream: bool = False) -> None:
@@ -100,6 +146,10 @@ def cmd_ask(prompt: str, stream: bool = False) -> None:
     else:
         response = "".join(list(_CHAT_ENGINE.chat_stream(prompt)))
         print(response)
+    if (_CHAT_ENGINE.last_reply_succeeded and _CHAT_ENGINE.settings.backend == 'local'
+            and getattr(_CHAT_ENGINE.local_model, 'last_finish_reason', None) == 'length'):
+        print('Response reached the token limit and may be incomplete.')
+    _show_confidence_status()
 
 
 def cmd_think(prompt: str, llm: Optional[Any] = None) -> str:
@@ -109,6 +159,8 @@ def cmd_think(prompt: str, llm: Optional[Any] = None) -> str:
     else:
         answer = llm.generate('Please reason carefully about: ' + prompt).strip()
     print(answer or 'The model produced no answer.')
+    if llm is None:
+        _show_confidence_status()
     return answer
 
 
@@ -209,6 +261,28 @@ def cmd_settings(args: List[str]) -> None:
         models = _CHAT_ENGINE.ollama.list_models()
         print('\n'.join(models) if models else 'No Ollama models found; check that Ollama is running.')
         return
+    if args[0] == 'confidence-status':
+        print('Local model replies show average base-model token likelihood, not answer accuracy. '
+              'Exact verification is available for complete single-turn integer arithmetic answers. '
+              'General answer correctness is not calibrated.')
+        return
+    if args[0] == 'confidence-artifact':
+        print('Open-JEV confidence artifacts are no longer used by chat; '
+              'exact arithmetic verification is built in.')
+        return
+    if args[0] == 'confidence':
+        if len(args) != 2 or args[1] not in ('on', 'off'):
+            print('Usage: hari settings confidence on|off')
+            return
+        settings.show_confidence = args[1] == 'on'
+        try:
+            save_settings(settings)
+        except (ValueError, OSError) as exc:
+            print(f'Settings not changed: {exc}')
+            return
+        _CHAT_ENGINE.settings.show_confidence = settings.show_confidence
+        print(f'Confidence status {args[1]}.')
+        return
     if args[0] == 'nano-model':
         if len(args) != 3:
             print('Usage: hari settings nano-model CHECKPOINT TOKENIZER')
@@ -231,7 +305,7 @@ def cmd_settings(args: List[str]) -> None:
                'nano-checkpoint': 'nano_checkpoint', 'nano-tokenizer': 'nano_tokenizer',
                'openjev-checkpoint': 'openjev_checkpoint', 'model-file': 'model_file'}
     if args[0] not in mapping or len(args) < 2:
-        print('Usage: hari settings show | list-models | backend local|nano|ollama | model-file PATH.gguf | ollama-model NAME | ollama-host URL | nano-model CHECKPOINT TOKENIZER | openjev-checkpoint PATH')
+        print('Usage: hari settings show | confidence-status | confidence on|off | list-models | backend local|nano|ollama | model-file PATH.gguf | ollama-model NAME | ollama-host URL | nano-model CHECKPOINT TOKENIZER | openjev-checkpoint PATH')
         return
     field = mapping[args[0]]
     value = ' '.join(args[1:])
@@ -272,6 +346,7 @@ def cmd_dream(args: List[str]) -> None:
 def repl() -> None:
     """Interactive conversational REPL with Ollama-style vanishing placeholder."""
     print_banner()
+    cmd_status()
 
     while True:
         try:
@@ -293,6 +368,10 @@ def repl() -> None:
             print("Conversation history reset. Ready for a new topic!\n")
         elif lower in ["info", "/info"]:
             cmd_info()
+        elif lower in ["version", "/version"]:
+            cmd_version()
+        elif lower in ["status", "/status"]:
+            cmd_status()
         elif lower in ["/?", "/help", "help", "hari help"]:
             print("\nAvailable Commands:")
             print("  /search <query>     - Web/Local search & AI research summarization")
@@ -301,9 +380,11 @@ def repl() -> None:
             print("  /code <task>        - Request code from the local model")
             print("  /dream [now|status] - Inspect Dream research status")
             print("  /memory [status]    - Inspect hierarchical memory levels")
-            print("  /settings [show|backend|ollama-model|list-models] - Configure chat backend")
+            print("  /settings [show|backend|ollama-model|list-models|confidence] - Configure chat")
             print("  /clear              - Reset multi-turn conversation context")
             print("  /info               - Display Creator Profile (K R Hari Prajwal)")
+            print("  /version            - Show the running app version")
+            print("  /status             - Show actual runtime and model status")
             print("  /exit               - Exit the chat session\n")
         elif lower.startswith("/search ") or lower.startswith("search "):
             q = user_input.split(" ", 1)[1]
@@ -366,6 +447,8 @@ def main():
         cmd_info()
     elif cmd in ["version", "-v", "--version"]:
         cmd_version()
+    elif cmd == 'status':
+        cmd_status()
     elif cmd == "memory":
         cmd_memory(all_args)
     elif cmd == "dream":
@@ -373,7 +456,7 @@ def main():
     elif cmd == "settings":
         cmd_settings(all_args)
     elif cmd in ["help", "-h", "--help"]:
-        print("Usage: hari [run|ask|think|decide|check-operation|code|memory|dream|settings|info|version|help]")
+        print("Usage: hari [run|ask|think|decide|check-operation|code|memory|dream|settings|status|info|version|help]")
     else:
         # Default behavior: treat unknown arguments as direct interactive prompt
         full_query = " ".join([parsed.command] + all_args)

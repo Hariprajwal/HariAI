@@ -41,6 +41,8 @@ class OpenJevAdapter:
         if not isinstance(data.get('training_steps'), int) or data['training_steps'] <= 0:
             raise ValueError('Open-JEV checkpoint must record a positive training_steps value.')
         self.choice_type = Choice
+        self.checkpoint_scope = data.get('scope')
+        self.state_encoding = data.get('state_encoding')
         self.model = Jev(JevConfig(**data['config']))
         self.model.load_state_dict(data['model_state_dict'])
         self.model.eval()

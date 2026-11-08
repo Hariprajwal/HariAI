@@ -53,3 +53,10 @@ and redistribution requirements. Preserve provenance and keep evaluation data
 separate. Do not infer permission from a model family name. Earlier broad lists
 of "approved" and "prohibited" models were not a source-by-source legal review
 and should not be treated as one.
+
+For example, the [Qwen2.5-3B-Instruct license](https://huggingface.co/Qwen/Qwen2.5-3B-Instruct/raw/main/LICENSE)
+is a research license restricting use of the materials to noncommercial
+purposes without a separate license, whereas the [Qwen2.5-7B-Instruct card](https://huggingface.co/Qwen/Qwen2.5-7B-Instruct)
+lists Apache 2.0. The former was used locally as an exploratory evaluation judge,
+not as training data for a released checkpoint. Check the actual local model
+revision and all relevant output/data terms before any future commercial use.

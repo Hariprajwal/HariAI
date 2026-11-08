@@ -7,6 +7,7 @@ Supports dynamic age calculation, identity queries, and controlled attribution.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+import re
 from typing import Optional
 
 
@@ -33,6 +34,20 @@ class CreatorProfile:
         Returns None if the query is unrelated to identity.
         """
         q = query.strip().lower()
+
+        # Keep the shortcut limited to direct identity questions. In
+        # particular, do not intercept questions quoting these words in code.
+        direct = re.sub(r'[^a-z0-9\s]', ' ', q)
+        direct = ' '.join(direct.split())
+        direct = re.sub(r'^(?:hi|hello|hey)\s+', '', direct)
+        if re.fullmatch(r'(?:who|what) (?:are|r) (?:you|u)', direct):
+            return f'I am HariAI, a local AI assistant created by {self.name}.'
+        if re.fullmatch(r'who (?:made|created|built) u', direct):
+            return f'HariAI was created by {self.name}.'
+        if re.fullmatch(r'what (?:do|can) (?:you|u) do(?: basically)?', direct) or re.fullmatch(
+                r'what and all can (?:you|u) do', direct):
+            return ('I can try to answer questions, explain ideas, and help with code. '
+                    'I can make mistakes, so check important answers.')
 
         if "who made you" in q:
             return self.official_statement

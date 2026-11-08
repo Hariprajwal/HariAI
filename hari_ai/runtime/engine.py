@@ -46,6 +46,13 @@ def detect_best_hardware() -> HardwareBackend:
     return HardwareBackend.CPU_SIMD
 
 
+def _torch_device_for_backend(backend: HardwareBackend) -> torch.device:
+    if backend == HardwareBackend.DIRECTML:
+        raise NotImplementedError('DirectML inference is not implemented for the Nano runtime.')
+    return torch.device({HardwareBackend.CPU_SIMD:'cpu', HardwareBackend.CUDA:'cuda',
+                         HardwareBackend.MPS:'mps'}[backend])
+
+
 @dataclass
 class GenerationConfig:
     max_new_tokens: int = 128
@@ -66,7 +73,7 @@ class InferenceEngine:
         tokenizer_path: Optional[str] = None,
     ):
         self.backend = backend or detect_best_hardware()
-        self.device = torch.device("cuda" if self.backend == HardwareBackend.CUDA else "cpu")
+        self.device = _torch_device_for_backend(self.backend)
 
         # Resolve the bundled prototype and its matching tokenizer.
         is_default_nano = model_path_or_name == 'nano'
