@@ -112,7 +112,7 @@ class SessionStatus:
                     model_origin = str(metadata['general.name']) + ' derived'
                 else:
                     model_name = str(metadata['general.name'])
-            device = 'CPU'
+            device = getattr(local, 'device', 'CPU')
             threads = min(local.threads, os.cpu_count() or 1)
             context_tokens = local.context_size
             readiness = 'Loaded' if loaded else ('Available · loads on first reply' if available else 'Model file missing')

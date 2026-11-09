@@ -274,6 +274,11 @@ class TestHariDashboard(unittest.IsolatedAsyncioTestCase):
                 self.assertEqual(self.local.calls, [])
                 self.assertEqual(len(self.chat.history), 1)
 
+    async def test_silent_command_switches_mode(self):
+        self.app.is_running = False
+        await self.app.submit_prompt('/silent')
+        self.assertTrue(self.app.switch_to_silent)
+
 
 if __name__ == '__main__':
     unittest.main()

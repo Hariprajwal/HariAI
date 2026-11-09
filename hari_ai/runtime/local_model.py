@@ -8,6 +8,8 @@ from pathlib import Path
 from contextlib import nullcontext
 from typing import Iterator, Optional
 
+from hari_ai.runtime.hardware import detect_hardware
+
 
 def bundled_model_path() -> Path:
     return Path(__file__).resolve().parents[1] / 'assets' / 'hariai-chat.gguf'
@@ -37,6 +39,24 @@ class LocalModel:
         self.preserve_terminal = False
         self._token_likelihood_compatible = None
         self._generation_lock = threading.Lock()
+        self._hardware = None
+        self._device = None
+
+    @property
+    def hardware(self):
+        if self._hardware is None:
+            self._hardware = detect_hardware()
+        return self._hardware
+
+    @property
+    def device(self):
+        if self._device is not None:
+            return self._device
+        return self.hardware.summary()
+
+    @device.setter
+    def device(self, val):
+        self._device = val
 
     def _load(self):
         if self._model is None:
@@ -52,12 +72,37 @@ class LocalModel:
             # against the public logprob API for this exact version. Unknown
             # versions can still chat, but do not get an unverified score.
             self._token_likelihood_compatible = getattr(llama_cpp, '__version__', '') == '0.3.8'
-            self._model = Llama(model_path=str(self.path), n_ctx=self.context_size,
-                # verbose=False in llama-cpp 0.3.8 temporarily dup2s the process
-                # console handles. A live Windows terminal driver retains those
-                # handles. In a TUI let its print capture collect load logs instead.
-                n_threads=min(self.threads, os.cpu_count() or 1), verbose=self.preserve_terminal,
-                chat_format='chatml', seed=42)
+            n_threads = min(self.threads, os.cpu_count() or 1)
+            gpu_layers = self.hardware.n_gpu_layers if self.hardware.gpu_available else 0
+
+            # Attempt GPU accelerated inference if hardware accelerator detected
+            if gpu_layers != 0:
+                try:
+                    self._model = Llama(
+                        model_path=str(self.path),
+                        n_ctx=self.context_size,
+                        n_threads=n_threads,
+                        n_gpu_layers=gpu_layers,
+                        verbose=self.preserve_terminal,
+                        chat_format='chatml',
+                        seed=42,
+                    )
+                    self.device = f"GPU ({self.hardware.device_name})"
+                except Exception:
+                    self._model = None
+
+            if self._model is None:
+                self._model = Llama(
+                    model_path=str(self.path),
+                    n_ctx=self.context_size,
+                    n_threads=n_threads,
+                    n_gpu_layers=0,
+                    verbose=self.preserve_terminal,
+                    chat_format='chatml',
+                    seed=42,
+                )
+                self.device = f"CPU ({n_threads} threads)"
+
             self._model.verbose = False
             atexit.register(self.close)
         return self._model

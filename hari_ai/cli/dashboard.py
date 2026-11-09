@@ -150,11 +150,13 @@ class HariDashboard(App):
         Binding('f1', 'help', 'Help', priority=True),
     ]
 
-    def __init__(self, engine_getter: Callable, dream_controller, command_handler: Callable):
+    def __init__(self, engine_getter: Callable, dream_controller, command_handler: Callable, swarm=None):
         super().__init__()
         self.engine_getter = engine_getter
         self.dream = dream_controller
         self.command_handler = command_handler
+        self.swarm = swarm
+        self.switch_to_silent = False
         self.status = SessionStatus(engine_getter, dream_controller)
         self.busy = False
         self.task_is_chat = False
@@ -193,9 +195,11 @@ class HariDashboard(App):
                 with Vertical(id='quick-commands', classes='panel'):
                     yield Static('Quick Commands', classes='panel-heading')
                     yield Button('/status     Live system details', id='quick-status')
-                    yield Button('/info       Creator profile', id='quick-info')
+                    yield Button('/swarm      Multi-bot debate', id='quick-swarm')
+                    yield Button('/silent     Minimal terminal', id='quick-silent')
+                    yield Button('/dream      Sleep consolidation', id='quick-dream')
                     yield Button('/memory     Session memory', id='quick-memory')
-                    yield Button('/dream      Inspect experiences', id='quick-dream')
+                    yield Button('/info       Creator profile', id='quick-info')
                     yield Button('/settings   Configure model', id='quick-settings')
                     yield Button('/clear      Start a new chat', id='quick-clear')
                     yield Button('/help       All commands', id='quick-help')
@@ -267,14 +271,22 @@ class HariDashboard(App):
         capabilities.append(f'Context: {state.turns} turns · {state.working_items} memory items\n', DIM)
         capabilities.append(f'App RAM: {ram} · Free: {free}\nSystem CPU: {cpu}', DIM)
         self.query_one('#capabilities', Panel).update(capabilities)
+        auto_dream = getattr(self.dream, 'auto_dream_active', False)
+        learning_state = 'Consolidating' if state.dream_state == 'sleep' else ('Active · auto' if auto_dream else 'Idle · manual')
+        rehearsal_count = len(getattr(self.dream, 'synthetic_rehearsal_buffer', []))
         self.query_one('#learning', Panel).update(rows(
-            ('State', 'Inspecting' if state.dream_state == 'sleep' else 'Idle · manual only'),
+            ('State', learning_state),
             ('Cycles', state.dream_cycles), ('Experiences', state.episodic_entries),
-            ('Last inspected', state.last_inspected if state.last_inspected is not None else '—'),
-            ('Weight updates', 'None · research mode')))
+            ('Facts', f'{state.semantic_facts} · Recipes: {state.recipes}'),
+            ('Rehearsal', f'{rehearsal_count} exercises'),
+            ('Weights', 'Continual LoRA gate')))
+        swarm_status = self.swarm.get_status() if self.swarm else {
+            'session': 'This terminal', 'workers': '0 · not started',
+            'activity': self.activity if self.busy else 'Idle', 'mode': 'Standalone chat'
+        }
         self.query_one('#cluster', Panel).update(rows(
-            ('Session', 'This terminal'), ('Workers', '0 · not started'),
-            ('Activity', self.activity if self.busy else 'Idle'), ('Mode', 'Standalone chat')))
+            ('Session', swarm_status['session']), ('Workers', swarm_status['workers']),
+            ('Activity', swarm_status['activity']), ('Mode', swarm_status['mode'])))
         if self.busy:
             suffix = 'Esc to stop' if self.task_is_chat else 'Command in progress'
             activity = f'{self.activity} · {elapsed:.1f}s · {self.generated_chars} characters · {suffix}'
@@ -335,6 +347,11 @@ class HariDashboard(App):
             return
         if text.lower() in ('/exit', '/quit', 'exit', 'quit', ':q'):
             self.action_quit_session()
+            return
+        if text.lower() in ('/silent', '/plain', '/terminal', 'silent'):
+            self.switch_to_silent = True
+            if self.is_running:
+                self.exit()
             return
         if text.lower() in ('/clear', 'clear'):
             await self.action_clear_chat()

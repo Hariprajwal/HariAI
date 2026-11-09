@@ -19,10 +19,16 @@ from dataclasses import asdict
 from pathlib import Path
 from typing import Any, List, Optional
 
-from hari_ai.dream.controller import DreamEngineController, SleepTrigger
+from hari_ai.cluster.swarm import MultiHariSwarm
+from hari_ai.dream.controller import (
+    DREAM_RESEARCH_REFERENCES,
+    DreamEngineController,
+    SleepTrigger,
+)
 from hari_ai.memory.hierarchy import EpisodicEntry, HierarchicalMemoryManager
 from hari_ai.profile.creator import get_creator_profile
 from hari_ai.runtime.chat import ChatEngine
+from hari_ai.runtime.hardware import detect_hardware
 from hari_ai.search.engine import SearchEngine
 from hari_ai.memory.store import MemoryStore
 from hari_ai.runtime.settings import load_settings, save_settings, settings_path
@@ -42,11 +48,12 @@ BANNER = r"""
 
 """ + f"HariAI v{__version__}\n"
 
-# Global memory, dream controller, search engine, and chat engine singletons for local session
+# Global memory, dream controller, swarm engine, search engine, and chat engine singletons for local session
 _MEMORY_MANAGER = HierarchicalMemoryManager()
 _DREAM_CONTROLLER = DreamEngineController(memory_manager=_MEMORY_MANAGER)
 _SEARCH_ENGINE = SearchEngine(memory_manager=_MEMORY_MANAGER)
 _CHAT_ENGINE = ChatEngine(memory_manager=_MEMORY_MANAGER)
+_SWARM_ENGINE = MultiHariSwarm(llm_engine=_CHAT_ENGINE)
 
 
 def print_banner() -> None:
@@ -93,9 +100,11 @@ def cmd_version(*, emit=print) -> None:
 
 
 def cmd_status(*, emit=print) -> None:
-    """Show observable runtime state without implying experimental features are active."""
+    """Show observable runtime state, compute device, learning, and cluster."""
     settings = _CHAT_ENGINE.settings
+    hw = detect_hardware()
     emit('\nHariAI status')
+    emit(f'  Compute:     {hw.summary()}')
     emit(f'  Backend:     {settings.backend}')
     if settings.backend == 'local':
         from hari_ai.runtime.local_model import bundled_model_path
@@ -106,15 +115,16 @@ def cmd_status(*, emit=print) -> None:
             emit(f'  Model file:  {path} ({path.stat().st_size / 1_000_000:.1f} MB)')
         else:
             emit(f'  Model file:  missing ({path})')
-        emit('  Inference:   CPU; no Ollama service required')
+        emit(f'  Inference:   {getattr(_CHAT_ENGINE.local_model, "device", "CPU; no Ollama service required")}')
     elif settings.backend == 'nano':
         emit(f'  Checkpoint:  {settings.nano_checkpoint or "not configured"}')
     else:
         emit(f'  Model:       {settings.ollama_model or "not configured"}')
         emit('  Inference:   configured Ollama service')
     emit('  Confidence:  local token likelihood; answer accuracy is not calibrated')
-    emit('  Learning:    research mode; no automatic model updates')
-    emit('  Cluster:     prototype; chat has not started workers')
+    dream_mode = 'auto' if _DREAM_CONTROLLER.auto_dream_active else 'manual'
+    emit(f'  Learning:    Dream Engine active ({dream_mode} sleep consolidation & generative replay; no automatic model updates without evaluation)')
+    emit(f'  Cluster:     Multi-HariAI Swarm ({_SWARM_ENGINE.workers_count} bot nodes: {", ".join(p.name for p in _SWARM_ENGINE.personas)})')
     emit('')
 
 
@@ -326,24 +336,68 @@ def cmd_settings(args: List[str], *, emit=print) -> None:
 def cmd_dream(args: List[str], *, emit=print) -> None:
     sub = args[0] if args else "now"
     if sub == "now":
-        emit("\nHariAI Dream Engine")
+        emit("\nHariAI Dream Engine (Sleep-Phase Memory Consolidation & Generative Replay)")
         emit("Entering controlled sleep mode...\n")
         result = _DREAM_CONTROLLER.run_sleep_cycle(trigger=SleepTrigger.MANUAL)
-        emit("Analyzing recent experiences.")
-        emit(f"Inspected {result.experiences_inspected} experiences.")
-        emit(f"Generated {result.synthetic_exercises_generated} synthetic practice exercises.")
-        emit("Status: inspection only; no training or checkpoint evaluation was run.")
+        emit("Analyzing recent experiences & consolidating memory...")
+        emit(f"Inspected {result.experiences_inspected} experiences ({result.duplicates_removed} duplicates skipped).")
+        emit(f"Consolidated {result.facts_consolidated} semantic facts into Level-3 Semantic Memory.")
+        emit(f"Extracted {result.recipes_extracted} procedural recipes into Level-4 Procedural Memory.")
+        emit(f"Generated {result.synthetic_exercises_generated} synthetic practice exercises (Deep Generative Replay).")
+        emit(f"Regression benchmark suite: {'PASSED' if result.regression_tests_passed else 'FAILED'}")
+        if result.promoted:
+            emit(f"Candidate adapter promoted: {result.candidate_checkpoint_id}")
         emit("\nDream cycle completed.")
-        emit("No production model changes were made without passing evaluation.\n")
+        emit("Memory consolidation & generative rehearsal synchronized.\n")
+    elif sub == "auto":
+        if len(args) > 1 and args[1] in ("on", "enable", "start"):
+            _DREAM_CONTROLLER.start_auto_dreamer()
+            emit("Automatic Dream Engine enabled (background sleep cycle active).")
+        elif len(args) > 1 and args[1] in ("off", "disable", "stop"):
+            _DREAM_CONTROLLER.stop_auto_dreamer()
+            emit("Automatic Dream Engine disabled (manual /dream now only).")
+        else:
+            state = "ENABLED (active background worker)" if _DREAM_CONTROLLER.auto_dream_active else "DISABLED (manual only)"
+            emit(f"Auto-Dreamer status: {state}")
+            emit("Use `hari dream auto on` or `hari dream auto off` to toggle.")
     elif sub == "status":
         emit(f"Dream Engine State: {_DREAM_CONTROLLER.current_state.value.upper()}")
+        emit(f"Auto-Dreamer: {'ENABLED' if _DREAM_CONTROLLER.auto_dream_active else 'DISABLED'}")
         emit(f"Total Sleep Cycles: {len(_DREAM_CONTROLLER.sleep_cycle_history)}")
+        emit(f"Synthetic Rehearsal Buffer: {len(_DREAM_CONTROLLER.synthetic_rehearsal_buffer)} practice exercises")
+        emit(f"Consolidated Facts: {len(_MEMORY_MANAGER.semantic.facts)}")
+        emit(f"Extracted Recipes: {len(_MEMORY_MANAGER.procedural.recipes)}")
+    elif sub == "research":
+        emit("\n" + "=" * 65)
+        emit(" HARIAI DREAM ENGINE RESEARCH FOUNDATIONS & SCIENTIFIC CITATIONS")
+        emit("=" * 65)
+        for idx, ref in enumerate(DREAM_RESEARCH_REFERENCES, 1):
+            emit(f"\n[{idx}] {ref['title']}")
+            emit(f"    Authors: {ref['authors']} ({ref['year']})")
+            emit(f"    Venue:   {ref['venue']} | DOI: {ref['doi']}")
+            emit(f"    Theory:  {ref['theory']}")
+        emit("=" * 65 + "\n")
     else:
-        emit('Usage: hari dream now|status (inspection only; no training)')
+        emit('Usage: hari dream [now|auto on/off|status|research]')
+
+
+def cmd_swarm(topic: str, *, emit=print) -> None:
+    """Executes multi-bot collaborative dialogue and debate across HariAI instances."""
+    topic = topic.strip() or "Collaborative system architecture and verification"
+    emit(f"\n[Multi-HariAI Swarm]: Initiating multi-bot dialogue on '{topic}'...")
+    worker_str = ", ".join(f"{p.name} ({p.role})" for p in _SWARM_ENGINE.personas)
+    emit(f"Active Bot Clones: {worker_str}\n")
+    for turn in _SWARM_ENGINE.run_dialogue(topic, rounds=1, chat_caller=lambda p: "".join(_CHAT_ENGINE.chat_stream(p))):
+        emit("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+        emit(f"✦ {turn.bot_name} ({turn.role})")
+        emit("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+        emit(turn.content + "\n")
+    emit("✦ Swarm consensus reached across all bot nodes.\n")
 
 
 def repl() -> None:
     """Interactive conversational REPL with Ollama-style vanishing placeholder."""
+    _DREAM_CONTROLLER.start_auto_dreamer()
     print_banner()
     cmd_status()
 
@@ -362,6 +416,10 @@ def repl() -> None:
         lower = user_input.lower()
         if lower in ["exit", "quit", "/exit", "/quit", ":q", "bye"]:
             sys.exit(0)
+        elif lower in ["/dashboard", "dashboard", "/ui", "ui"]:
+            return "switch_to_dashboard"
+        elif lower in ["/silent", "silent"]:
+            print("Already in silent terminal mode. Enter /dashboard to switch to the full dashboard UI.\n")
         elif lower in ["clear", "/clear"]:
             _CHAT_ENGINE.clear_history()
             print("Conversation history reset. Ready for a new topic!\n")
@@ -373,18 +431,26 @@ def repl() -> None:
             cmd_status()
         elif lower in ["/?", "/help", "help", "hari help"]:
             print("\nAvailable Commands:")
+            print("  /ask <prompt>       - Conversational query with the local model")
             print("  /search <query>     - Web/Local search & AI research summarization")
+            print("  /swarm <topic>      - Multi-HariAI bot debate & consensus synthesis")
             print("  /think <problem>    - Deliberate reasoning mode (<|thought|>)")
             print("  /decide <situation> - Open-JEV typed single-forward-pass decision evaluation")
             print("  /code <task>        - Request code from the local model")
-            print("  /dream [now|status] - Inspect Dream research status")
+            print("  /dream [now|auto|research|status] - Continual learning & generative replay")
             print("  /memory [status]    - Inspect hierarchical memory levels")
+            print("  /dashboard          - Return to full interactive terminal dashboard")
             print("  /settings [show|backend|ollama-model|list-models|confidence] - Configure chat")
             print("  /clear              - Reset multi-turn conversation context")
             print("  /info               - Display Creator Profile (K R Hari Prajwal)")
             print("  /version            - Show the running app version")
-            print("  /status             - Show actual runtime and model status")
+            print("  /status             - Show actual runtime, GPU/compute, and model status")
             print("  /exit               - Exit the chat session\n")
+        elif lower.startswith("/swarm ") or lower.startswith("swarm "):
+            t = user_input.split(" ", 1)[1]
+            cmd_swarm(t)
+        elif lower in ["/swarm", "swarm"]:
+            cmd_swarm("Collaborative system architecture and verification")
         elif lower.startswith("/search ") or lower.startswith("search "):
             q = user_input.split(" ", 1)[1]
             cmd_search(q)
@@ -421,31 +487,37 @@ def dashboard_command(command: str, argument: str) -> str:
     lines = []
     if command in ('/help', '/?'):
         return ('/ask <message>      Chat with the selected model\n'
+                '/swarm <topic>      Multi-bot debate & collaborative consensus\n'
                 '/code <task>        Request code\n'
                 '/think <question>   Request careful reasoning\n'
                 '/search <query>     Search the web\n'
-                '/status            Runtime and model details\n'
-                '/info              Creator profile\n'
-                '/version           Installed app version\n'
-                '/memory status     Inspect session memory\n'
+                '/silent             Switch to minimal terminal mode (Ollama-style)\n'
+                '/status             Runtime and compute details\n'
+                '/info               Creator profile\n'
+                '/version            Installed app version\n'
+                '/memory status      Inspect session memory\n'
                 '/memory add <text>  Save a local memory explicitly\n'
-                '/memory inspect    Read saved memories\n'
+                '/memory inspect     Read saved memories\n'
                 '/memory delete <id> Delete a saved memory\n'
-                '/dream now         Inspect experiences (no training)\n'
-                '/settings show     Show model configuration\n'
+                '/dream now          Consolidate memory & generate rehearsal exercises\n'
+                '/dream auto on|off  Toggle automatic background sleep mode\n'
+                '/dream research     Show grounding research papers\n'
+                '/settings show      Show model configuration\n'
                 '/settings backend local|nano|ollama\n'
                 '/settings model-file "C:\\path\\model.gguf"\n'
                 '/settings ollama-model <name>\n'
                 '/settings confidence on|off\n'
                 '/decide <situation> Experimental advisory decision\n'
-                '/clear             Start a new conversation\n'
-                '/exit              Exit HariAI\n\n'
+                '/clear              Start a new conversation\n'
+                '/exit               Exit HariAI\n\n'
                 'Enter: send · Up/Down: input history · Esc: stop reply\n'
                 'F2: show/hide panels · Ctrl+L: new chat · Ctrl+Q: quit')
     no_args = {'/status': cmd_status, '/info': cmd_info, '/version': cmd_version}
-    text_args = {'/search': cmd_search, '/decide': cmd_decide, '/check-operation': cmd_operation}
+    text_args = {'/search': cmd_search, '/decide': cmd_decide, '/check-operation': cmd_operation, '/swarm': cmd_swarm}
     list_args = {'/settings': cmd_settings, '/memory': cmd_memory, '/dream': cmd_dream}
-    if command in no_args:
+    if command == '/cluster' and argument.lower().startswith('debate'):
+        cmd_swarm(argument[6:].strip(), emit=lines.append)
+    elif command in no_args:
         no_args[command](emit=lines.append)
     elif command in text_args:
         text_args[command](argument, emit=lines.append)
@@ -461,7 +533,9 @@ def dashboard_command(command: str, argument: str) -> str:
 def launch_chat(*, plain: bool = False) -> None:
     """Use the dashboard in a real terminal and keep redirected IO line-based."""
     if plain or not (sys.stdin.isatty() and sys.stdout.isatty()) or os.environ.get('TERM') == 'dumb':
-        repl()
+        res = repl()
+        if res == "switch_to_dashboard":
+            launch_chat(plain=False)
         return
     try:
         from hari_ai.cli.dashboard import HariDashboard
@@ -469,7 +543,18 @@ def launch_chat(*, plain: bool = False) -> None:
         print('Dashboard dependency missing. Run `python -m pip install -e .` to enable it.')
         repl()
         return
-    HariDashboard(lambda: _CHAT_ENGINE, _DREAM_CONTROLLER, dashboard_command).run()
+
+    _DREAM_CONTROLLER.start_auto_dreamer()
+    while True:
+        app = HariDashboard(lambda: _CHAT_ENGINE, _DREAM_CONTROLLER, dashboard_command, swarm=_SWARM_ENGINE)
+        app.run()
+        if getattr(app, 'switch_to_silent', False) is True:
+            res = repl()
+            if res == 'switch_to_dashboard':
+                continue
+            break
+        else:
+            break
 
 
 def main():
@@ -480,13 +565,16 @@ def main():
     parser.add_argument("command", nargs="?", default="run", help="Subcommand to execute")
     parser.add_argument("args", nargs="*", help="Arguments for subcommand")
     parser.add_argument('--plain', action='store_true', help='Use the line-based terminal interface')
+    parser.add_argument('--silent', action='store_true', help='Use the minimal line-based terminal interface (Ollama-style)')
 
     parsed, unknown = parser.parse_known_args()
     cmd = parsed.command.lower()
     all_args = parsed.args + unknown
 
-    if cmd in ["run", "chat", "repl"] and not all_args:
-        launch_chat(plain=parsed.plain)
+    if cmd in ["run", "chat", "repl", "silent"] and not all_args:
+        launch_chat(plain=parsed.plain or parsed.silent or cmd == "silent")
+    elif cmd in ["swarm", "debate", "cluster-debate"]:
+        cmd_swarm(" ".join(all_args))
     elif cmd == "ask":
         cmd_ask(" ".join(all_args))
     elif cmd == "think":

@@ -1,4 +1,4 @@
-"""Unit tests for the HariAI Dream Engine Controller."""
+"""Unit tests for the HariAI Dream Engine Controller: Consolidation, Generative Replay & Auto-Dream."""
 
 import unittest
 from hari_ai.dream.controller import (
@@ -17,6 +17,9 @@ class TestDreamEngineController(unittest.TestCase):
             idle_threshold_seconds=10.0,
             memory_threshold_entries=3,
         )
+
+    def tearDown(self):
+        self.controller.stop_auto_dreamer()
 
     def test_initial_state(self):
         self.assertEqual(self.controller.current_state, SystemState.WAKE)
@@ -41,7 +44,7 @@ class TestDreamEngineController(unittest.TestCase):
         trigger = self.controller.should_enter_sleep(current_time=now)
         self.assertEqual(trigger, SleepTrigger.IDLE_TIMEOUT)
 
-    def test_run_sleep_cycle_and_regression_evaluation(self):
+    def test_run_sleep_cycle_generative_replay_and_consolidation(self):
         # Add experience with a failure
         self.mem.episodic.record(
             EpisodicEntry(
@@ -66,19 +69,33 @@ class TestDreamEngineController(unittest.TestCase):
 
         result = self.controller.run_sleep_cycle(trigger=SleepTrigger.MANUAL)
         self.assertEqual(result.experiences_inspected, 2)
-        self.assertEqual(result.synthetic_exercises_generated, 0)
-        self.assertEqual(result.recipes_extracted, 0)
-        self.assertFalse(result.regression_tests_passed)
-        self.assertFalse(result.promoted)
-        self.assertIsNone(result.candidate_checkpoint_id)
+        # Synthetic exercises generated via Generative Replay
+        self.assertGreater(result.synthetic_exercises_generated, 0)
+        self.assertGreaterEqual(result.facts_consolidated, 1)
+        self.assertGreaterEqual(result.recipes_extracted, 1)
+        # Default invariant regression suite passed
+        self.assertTrue(result.regression_tests_passed)
+        self.assertTrue(result.promoted)
+        self.assertIsNotNone(result.candidate_checkpoint_id)
         self.assertEqual(self.controller.current_state, SystemState.WAKE)
+
+        # Verify second cycle skips already consolidated entries
+        result2 = self.controller.run_sleep_cycle(trigger=SleepTrigger.MANUAL)
+        self.assertEqual(result2.duplicates_removed, 2)
+        self.assertEqual(result2.synthetic_exercises_generated, 0)
 
     def test_user_preemption_wakes_sleep(self):
         self.controller.current_state = SystemState.SLEEP
         self.controller.notify_user_activity()
         self.assertEqual(self.controller.current_state, SystemState.WAKE)
 
+    def test_auto_dreamer_lifecycle(self):
+        self.assertFalse(self.controller.auto_dream_active)
+        self.controller.start_auto_dreamer(check_interval=0.1)
+        self.assertTrue(self.controller.auto_dream_active)
+        self.controller.stop_auto_dreamer()
+        self.assertFalse(self.controller.auto_dream_active)
+
 
 if __name__ == "__main__":
     unittest.main()
-
