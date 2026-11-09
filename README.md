@@ -33,6 +33,27 @@ After changing the local code, enter `/exit` and start the app again. Enter
 `/version` inside chat to check the running app version. The version number is
 for the application; it does not imply that a new language model was trained.
 
+`hari`, `hari run`, and `python -m hari_ai.cli` open the purple **live terminal
+dashboard** in an interactive terminal. It includes streaming chat, grey token
+likelihood beneath replies, a creator profile, and five panels for runtime,
+capabilities, Dream inspection, cluster state, and clickable commands.
+
+![HariAI live terminal dashboard](docs/images/terminal-dashboard.png)
+
+The screenshot is a real local session; its model size and telemetry are sampled,
+not example targets. Model availability, device, uptime, CPU/RAM, conversation
+counts, reply activity, and Dream inspection counts update from runtime state.
+Inactive training and cluster workers are labelled accurately. No background
+training or autonomous workers are started by opening the dashboard.
+
+Maximize the terminal for the two-column layout (112 columns or more). On narrow
+windows, **F2** switches between chat and the panels. **Esc** stops a streaming
+reply; **Ctrl+L** starts a new chat; **Ctrl+Q** quits; **Up/Down** recall input.
+Use `/info` for the creator card, `/settings show` for configuration, and `/help`
+for commands. Existing commands remain available inside the dashboard.
+`hari run --plain` keeps the line-based interface; redirected input/output use it
+automatically. `NO_COLOR` is respected. Restart existing sessions to load v0.2.0a5.
+
 No wheel or model is published yet. A fresh clone requires a compatible ChatML
 GGUF file configured with `hari settings model-file PATH`; Git does not include it.
 For the development checkout with the local model present:
@@ -123,8 +144,7 @@ fed into training automatically. The separate `search` command uses the network;
 ordinary local chat does not.
 
 The CLI shows the **average base-model token likelihood** after local
-model-generated replies. For example, `Token likelihood: 83% (not answer
-accuracy)` means the model assigned its generated tokens an average probability
+model-generated replies. For example, `Token likelihood: 83%` means the model assigned its generated tokens an average probability
 of 83% before sampling adjustments. This is a language-prediction signal, not
 a calibrated probability that the answer is correct. The line is grey in an
 interactive terminal. Hard-coded replies or unsupported runtimes show

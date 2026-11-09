@@ -14,6 +14,28 @@ class TokenCounter:
 
 
 class LocalModelTests(unittest.TestCase):
+    def test_terminal_load_preserves_console_handles_and_quiets_generation(self):
+        seen = []
+        class StubLlama:
+            def __init__(self, **kwargs):
+                seen.append(kwargs['verbose'])
+                self.verbose = kwargs['verbose']
+            def close(self):
+                pass
+        fake_module = types.SimpleNamespace(Llama=StubLlama, __version__='0.3.8')
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / 'model.gguf'
+            path.write_bytes(b'placeholder')
+            with patch.dict(sys.modules, {'llama_cpp': fake_module}):
+                for terminal in (False, True):
+                    model = LocalModel(str(path))
+                    model.preserve_terminal = terminal
+                    self.assertFalse(model._load().verbose)
+                    model.close()
+        # False uses upstream descriptor suppression, True bypasses it so a
+        # running Windows terminal retains valid input/output handles.
+        self.assertEqual(seen, [False, True])
+
     def test_overlapping_streams_are_rejected_and_close_releases_lock(self):
         class StreamModel(TokenCounter):
             def create_chat_completion(self, **kwargs):

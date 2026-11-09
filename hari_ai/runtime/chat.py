@@ -90,6 +90,30 @@ class ChatEngine:
         return [message.content for message in self.history if message.role == 'user']
 
     def chat_stream(self, user_input: str) -> Iterator[str]:
+        """Commit complete turns only; closing a stream rolls back a partial turn."""
+        history_start = len(self.history)
+        working_start = len(self.memory.working.scratchpad)
+        completed = False
+        try:
+            yield from self._chat_stream_impl(user_input)
+            completed = True
+            if not self.last_reply_succeeded:
+                del self.memory.working.scratchpad[working_start:]
+            if self.last_reply_succeeded and len(self.history) > history_start:
+                self.memory.episodic.record(EpisodicEntry(
+                    entry_id=f'chat-{time.time_ns()}', timestamp=time.time(),
+                    user_input=user_input.strip(), assistant_output=self.history[-1].content,
+                    action_taken='chat', was_successful=False))
+        finally:
+            if not completed:
+                del self.history[history_start:]
+                del self.memory.working.scratchpad[working_start:]
+                self.last_reply_succeeded = False
+                self.last_answer_confidence = None
+                self.last_confidence_source = None
+                self.last_token_likelihood = None
+
+    def _chat_stream_impl(self, user_input: str) -> Iterator[str]:
         self.last_reply_succeeded = False
         self.last_answer_confidence = None
         self.last_confidence_source = None
@@ -161,7 +185,4 @@ class ChatEngine:
                 self.last_reply_succeeded = True
 
         self.history.append(ChatMessage(role='assistant', content=answer))
-        self.memory.episodic.record(EpisodicEntry(entry_id=f'chat-{int(time.time() * 1000)}',
-            timestamp=time.time(), user_input=prompt, assistant_output=answer, action_taken='chat',
-            was_successful=False))
         yield answer

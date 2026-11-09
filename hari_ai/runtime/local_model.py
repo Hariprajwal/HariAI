@@ -22,6 +22,7 @@ class LocalModel:
         self.last_finish_reason = None
         self.last_token_likelihood = None
         self.measure_token_likelihood = True
+        self.preserve_terminal = False
         self._token_likelihood_compatible = None
         self._generation_lock = threading.Lock()
 
@@ -40,8 +41,12 @@ class LocalModel:
             # versions can still chat, but do not get an unverified score.
             self._token_likelihood_compatible = getattr(llama_cpp, '__version__', '') == '0.3.8'
             self._model = Llama(model_path=str(self.path), n_ctx=self.context_size,
-                n_threads=min(self.threads, os.cpu_count() or 1), verbose=False,
+                # verbose=False in llama-cpp 0.3.8 temporarily dup2s the process
+                # console handles. A live Windows terminal driver retains those
+                # handles. In a TUI let its print capture collect load logs instead.
+                n_threads=min(self.threads, os.cpu_count() or 1), verbose=self.preserve_terminal,
                 chat_format='chatml', seed=42)
+            self._model.verbose = False
             atexit.register(self.close)
         return self._model
 

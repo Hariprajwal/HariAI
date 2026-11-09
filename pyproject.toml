@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "hari-ai"
-version = "0.2.0a4"
+version = "0.2.0a5"
 description = "HariAI: standalone local conversation and experimental typed decision models"
 authors = [
     { name = "K R Hari Prajwal" }
@@ -16,6 +16,8 @@ dependencies = [
     "torch>=2.2.0",
     "numpy>=1.20.0",
     "llama-cpp-python==0.3.8",
+    "textual>=8.1.1,<9",
+    "psutil>=5.9,<8",
 ]
 keywords = ["ai", "transformer", "slm", "small-language-model", "decision-engine", "edge-ai"]
 classifiers = [
@@ -36,4 +38,5 @@ include = ["hari_ai*"]
 
 [tool.setuptools.package-data]
 hari_ai = ["assets/*.gguf", "assets/*.pt", "assets/*.json", "assets/*.md", "assets/LICENSE*", "vendor/open_jev/LICENSE", "vendor/open_jev/NOTICE.md"]
+"hari_ai.cli" = ["*.tcss"]
 

@@ -62,6 +62,21 @@ class TestChatEngine(unittest.TestCase):
         self.assertIn('missing model', ''.join(chat.chat_stream('Hello')))
         self.assertEqual(len(chat.history), 1)
         self.assertFalse(chat.last_reply_succeeded)
+        self.assertEqual(chat.memory.working.scratchpad, [])
+
+    def test_local_replies_record_session_experiences_only_on_completion(self):
+        chat = ChatEngine(settings=ChatSettings(), local_model=FakeLocal())
+        stream = chat.chat_stream('hello')
+        next(stream)
+        stream.close()
+        self.assertEqual(len(chat.history), 1)
+        self.assertEqual(chat.memory.working.scratchpad, [])
+        self.assertEqual(chat.memory.episodic.entries, [])
+        self.assertFalse(chat.last_reply_succeeded)
+        ''.join(chat.chat_stream('hello again'))
+        self.assertEqual(len(chat.memory.episodic.entries), 1)
+        self.assertEqual(chat.memory.episodic.entries[0].assistant_output, 'Hello from HariAI.')
+        self.assertFalse(chat.memory.episodic.entries[0].was_successful)
 
     def test_identity_shorthand_does_not_use_model(self):
         local = FakeLocal()

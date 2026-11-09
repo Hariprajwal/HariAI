@@ -10,6 +10,31 @@ from unittest.mock import patch
 
 
 class TestHariCLI(unittest.TestCase):
+    def test_interactive_launch_defaults_to_dashboard(self):
+        cli = importlib.import_module('hari_ai.cli.main')
+        with patch.object(cli.sys.stdin, 'isatty', return_value=True), \
+                patch.object(cli.sys.stdout, 'isatty', return_value=True), \
+                patch.dict(os.environ, {'TERM': 'xterm-256color'}), \
+                patch('hari_ai.cli.dashboard.HariDashboard') as dashboard, patch.object(cli, 'repl') as plain:
+            cli.launch_chat()
+            dashboard.return_value.run.assert_called_once()
+            plain.assert_not_called()
+
+    def test_plain_and_redirected_launch_do_not_start_dashboard(self):
+        cli = importlib.import_module('hari_ai.cli.main')
+        with patch.object(cli, 'repl') as plain, patch('hari_ai.cli.dashboard.HariDashboard') as dashboard:
+            cli.launch_chat(plain=True)
+            with patch.object(cli.sys.stdin, 'isatty', return_value=False):
+                cli.launch_chat()
+            self.assertEqual(plain.call_count, 2)
+            dashboard.assert_not_called()
+
+    def test_dashboard_settings_preserve_quoted_windows_path(self):
+        cli = importlib.import_module('hari_ai.cli.main')
+        with patch.object(cli, 'cmd_settings') as settings:
+            cli.dashboard_command('/settings', 'model-file "C:\\My Models\\assistant.gguf"')
+            self.assertEqual(settings.call_args.args[0], ['model-file', 'C:\\My Models\\assistant.gguf'])
+
     def test_confidence_is_grey_in_terminal_and_plain_with_no_color(self):
         cli = importlib.import_module('hari_ai.cli.main')
         class Terminal(io.StringIO):
@@ -41,7 +66,7 @@ class TestHariCLI(unittest.TestCase):
             output.truncate(0)
             with patch.object(cli._CHAT_ENGINE, 'last_token_likelihood', .725):
                 cli._show_confidence_status()
-                self.assertEqual(output.getvalue(), '\x1b[90mToken likelihood: 72% (not answer accuracy)\x1b[0m\n')
+                self.assertEqual(output.getvalue(), '\x1b[90mToken likelihood: 72%\x1b[0m\n')
 
     def test_direct_identity_shows_unavailable_confidence(self):
         proc = subprocess.run([sys.executable, '-m', 'hari_ai.cli', 'ask', 'who are u?'],

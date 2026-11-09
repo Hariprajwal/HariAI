@@ -1,0 +1,75 @@
+Screen {
+    background: #09070f;
+    color: #eee8f5;
+}
+#titlebar {
+    height: 1;
+    background: #251a34;
+    color: #e9ddef;
+    padding: 0 1;
+}
+#lights { width: 8; }
+#window-title { width: 1fr; text-align: center; }
+#version { width: 12; text-align: right; color: #c9a3ee; }
+#workspace { height: 1fr; padding: 1 1 0 1; }
+#main-pane { width: 1fr; padding-right: 2; }
+#conversation { height: 1fr; scrollbar-size: 1 1; scrollbar-color: #6d438e; scrollbar-background: #120d1c; }
+#brand { height: auto; margin: 0 0 1 0; text-align: center; }
+.panel {
+    height: auto;
+    border: round #a66ddd;
+    border-title-color: #d29dff;
+    border-title-style: bold;
+    border-subtitle-color: #8bdfaa;
+    padding: 0 1;
+    margin-bottom: 1;
+    background: #0c0912;
+}
+#overview { margin: 0 1 1 1; }
+#messages { height: auto; }
+.turn { height: auto; margin: 0 1 1 1; }
+.user-turn { background: #20162f; }
+.user-line { height: auto; padding: 0 1; color: #f4eafa; }
+.reply-body { height: auto; }
+.reply-note { height: auto; padding-left: 2; color: #93889f; }
+.creator-card { margin: 0 2 1 3; }
+#activity { height: 1; padding-left: 1; color: #93889f; }
+#prompt {
+    height: 3;
+    border: none;
+    border-top: solid #453054;
+    padding: 0 1;
+    background: #100b18;
+}
+#prompt:focus { border-top: solid #b980ee; }
+#sidebar {
+    width: 44;
+    border-left: solid #30213d;
+    padding-left: 1;
+    scrollbar-size: 1 1;
+    scrollbar-color: #6d438e;
+    scrollbar-background: #120d1c;
+}
+.panel-heading { display: none; }
+#quick-commands Button {
+    width: 100%;
+    min-width: 0;
+    height: 1;
+    min-height: 1;
+    border: none;
+    background: transparent;
+    color: #ddd0ea;
+    text-align: left;
+    content-align: left middle;
+    padding: 0;
+}
+#quick-commands Button:hover, #quick-commands Button:focus { background: #322044; color: #ead3ff; }
+#quick-commands Button:disabled { color: #73667f; }
+Footer { background: #21172e; color: #b6a4c7; }
+FooterKey { background: #21172e; }
+FooterKey .footer-key--key { background: #38234d; color: #e4c6ff; }
+FooterKey .footer-key--description { background: #21172e; color: #c9b4da; }
+.narrow #sidebar { width: 100%; border-left: none; padding-left: 0; }
+.narrow #main-pane { padding-right: 0; }
+.short #overview { display: none; }
+.short #brand { height: 2; margin-bottom: 1; }
