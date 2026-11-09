@@ -83,6 +83,8 @@ def cmd_info(*, emit=print) -> None:
     emit(f" Origin:         {profile.origin_region}")
     emit(f" Creation Age:   {profile.creation_age} years old (At creation)")
     emit(f" Statement:      \"{profile.official_statement}\"")
+    emit(f" Inspiration:    {profile.spiritual_inspiration}")
+    emit(f" Motto:          {profile.personal_motto}")
     emit(f" GitHub:         {profile.github_url}")
     from hari_ai.runtime.session_status import SessionStatus
     state = SessionStatus(lambda: _CHAT_ENGINE, _DREAM_CONTROLLER).snapshot()
@@ -93,6 +95,15 @@ def cmd_info(*, emit=print) -> None:
         emit(f" Model size:     {state.model_bytes / 1_000_000:.1f} MB")
     emit(" Research goal:  Under 35 MB (not achieved by this chat model)")
     emit("=" * 60 + "\n")
+
+
+def cmd_mahakal(*, emit=print) -> None:
+    """Render the sacred Mahakaal terminal graphic inside purple panel."""
+    from hari_ai.cli.art import get_mahakal_panel
+    from rich.console import Console
+    console = Console(color_system="truecolor")
+    panel = get_mahakal_panel(width=72, height_lines=14)
+    console.print(panel)
 
 
 def cmd_version(*, emit=print) -> None:
@@ -423,6 +434,8 @@ def repl() -> None:
         elif lower in ["clear", "/clear"]:
             _CHAT_ENGINE.clear_history()
             print("Conversation history reset. Ready for a new topic!\n")
+        elif lower in ["mahakal", "/mahakal", "shiva", "/shiva"]:
+            cmd_mahakal()
         elif lower in ["info", "/info"]:
             cmd_info()
         elif lower in ["version", "/version"]:
@@ -502,6 +515,7 @@ def dashboard_command(command: str, argument: str) -> str:
                 '/dream now          Consolidate memory & generate rehearsal exercises\n'
                 '/dream auto on|off  Toggle automatic background sleep mode\n'
                 '/dream research     Show grounding research papers\n'
+                '/mahakal            Display Mahakaal sacred artwork\n'
                 '/settings show      Show model configuration\n'
                 '/settings backend local|nano|ollama\n'
                 '/settings model-file "C:\\path\\model.gguf"\n'
@@ -515,6 +529,10 @@ def dashboard_command(command: str, argument: str) -> str:
     no_args = {'/status': cmd_status, '/info': cmd_info, '/version': cmd_version}
     text_args = {'/search': cmd_search, '/decide': cmd_decide, '/check-operation': cmd_operation, '/swarm': cmd_swarm}
     list_args = {'/settings': cmd_settings, '/memory': cmd_memory, '/dream': cmd_dream}
+    if command in ('/mahakal', '/shiva'):
+        return ("✦ Om Namah Shivaya ✦\n"
+                "Mahakaal: The Eternal, Timeless Protector & Spiritual Inspiration of HariAI.\n"
+                "Inspired by Lord Shiva — Transcending boundaries through perseverance and focus.")
     if command == '/cluster' and argument.lower().startswith('debate'):
         cmd_swarm(argument[6:].strip(), emit=lines.append)
     elif command in no_args:
@@ -575,6 +593,8 @@ def main():
         launch_chat(plain=parsed.plain or parsed.silent or cmd == "silent")
     elif cmd in ["swarm", "debate", "cluster-debate"]:
         cmd_swarm(" ".join(all_args))
+    elif cmd in ["mahakal", "shiva"]:
+        cmd_mahakal()
     elif cmd == "ask":
         cmd_ask(" ".join(all_args))
     elif cmd == "think":

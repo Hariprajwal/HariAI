@@ -15,6 +15,7 @@ from textual.containers import Horizontal, Vertical, VerticalScroll
 from textual.message import Message
 from textual.widgets import Button, Footer, Input, Static
 
+from hari_ai.cli.art import get_mahakal_text
 from hari_ai.cli.confidence import confidence_lines
 from hari_ai.profile.creator import get_creator_profile
 from hari_ai.runtime.session_status import SessionStatus
@@ -114,11 +115,17 @@ class CreatorCard(Static):
 
     def render(self):
         profile = get_creator_profile()
-        return rows(('Name', profile.name), ('Origin', profile.origin_region),
+        info = rows(('Name', profile.name), ('Origin', profile.origin_region),
                     ('At creation', f'{profile.creation_age} years old'),
                     ('About', profile.professional_identity),
                     ('Inspiration', profile.spiritual_inspiration),
                     ('Motto', profile.personal_motto), ('GitHub', profile.github_url))
+        mahakal_art = get_mahakal_text(width=16, height_lines=8, bg_hex='#0c0912')
+        card = Table.grid(padding=(0, 2), expand=False)
+        card.add_column()
+        card.add_column()
+        card.add_row(mahakal_art, info)
+        return card
 
 
 class ReplyPiece(Message):
@@ -284,9 +291,15 @@ class HariDashboard(App):
             'session': 'This terminal', 'workers': '0 · not started',
             'activity': self.activity if self.busy else 'Idle', 'mode': 'Standalone chat'
         }
-        self.query_one('#cluster', Panel).update(rows(
+        cluster_rows = rows(
             ('Session', swarm_status['session']), ('Workers', swarm_status['workers']),
-            ('Activity', swarm_status['activity']), ('Mode', swarm_status['mode'])))
+            ('Activity', swarm_status['activity']), ('Mode', swarm_status['mode']))
+        mahakal_cluster = get_mahakal_text(width=10, height_lines=4, bg_hex='#0c0912')
+        cluster_grid = Table.grid(padding=(0, 1), expand=False)
+        cluster_grid.add_column()
+        cluster_grid.add_column()
+        cluster_grid.add_row(cluster_rows, mahakal_cluster)
+        self.query_one('#cluster', Panel).update(cluster_grid)
         if self.busy:
             suffix = 'Esc to stop' if self.task_is_chat else 'Command in progress'
             activity = f'{self.activity} · {elapsed:.1f}s · {self.generated_chars} characters · {suffix}'
@@ -384,7 +397,7 @@ class HariDashboard(App):
             if text.startswith('/') and command not in chat_commands:
                 result = self.command_handler(command, argument)
                 self.post_message(ReplyPiece(result))
-                creator = command == '/info'
+                creator = command in ('/info', '/mahakal', '/shiva')
             else:
                 if command in chat_commands and not argument.strip():
                     raise ValueError(f'Usage: {command} <message>')

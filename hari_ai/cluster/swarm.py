@@ -204,3 +204,4 @@ class MultiHariSwarm:
                 f"• Replaced heavy locking with epoch quiescence, ensuring deterministic safety with O(1) hot-path overhead.\n"
                 f"Status: Formally harmonized and approved by all {self.workers_count} HariAI swarm nodes."
             )
+
