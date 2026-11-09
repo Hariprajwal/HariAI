@@ -2,6 +2,9 @@
 
 **Local AI by K R Hari Prajwal — a standalone language model and experimental typed decisions.**
 
+<img width="1917" height="1057" alt="image" src="https://github.com/user-attachments/assets/8f370fec-154a-4f9e-86c5-146961681abd" />
+
+
 [![Python](https://img.shields.io/badge/Python-3.10%2B-blue)](https://www.python.org/)
 [![License](https://img.shields.io/badge/License-Noncommercial-orange)](LICENSE)
 [![Status](https://img.shields.io/badge/Status-Experimental_alpha-yellow)](docs/research/STANDALONE_MODEL_PLAN.md)
