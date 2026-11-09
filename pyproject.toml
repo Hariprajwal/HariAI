@@ -17,6 +17,8 @@ dependencies = [
     "numpy>=1.20.0",
     "llama-cpp-python==0.3.8",
     "textual>=8.1.1,<9",
+    "rich>=13.0.0",
+    "pillow>=9.0.0",
     "psutil>=5.9,<8",
 ]
 keywords = ["ai", "transformer", "slm", "small-language-model", "decision-engine", "edge-ai"]
@@ -37,6 +39,6 @@ hari = "hari_ai.cli.main:main"
 include = ["hari_ai*"]
 
 [tool.setuptools.package-data]
-hari_ai = ["assets/*.gguf", "assets/*.pt", "assets/*.json", "assets/*.md", "assets/LICENSE*", "vendor/open_jev/LICENSE", "vendor/open_jev/NOTICE.md"]
+hari_ai = ["assets/*.gguf", "assets/*.pt", "assets/*.json", "assets/*.md", "assets/*.png", "assets/LICENSE*", "vendor/open_jev/LICENSE", "vendor/open_jev/NOTICE.md"]
 "hari_ai.cli" = ["*.tcss"]
 

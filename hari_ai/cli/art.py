@@ -99,3 +99,4 @@ def get_mahakal_panel(width: int = 64, height_lines: int = 14, border_style: str
         padding=0,
         style="on #0c0911",
     )
+

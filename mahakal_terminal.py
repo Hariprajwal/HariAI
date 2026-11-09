@@ -57,3 +57,4 @@ panel = Panel(
 
 if __name__ == "__main__":
     console.print(panel)
+
