@@ -104,3 +104,34 @@ class LocalModelTests(unittest.TestCase):
             self.assertFalse(model._token_likelihood_compatible)
             self.assertIsNone(model.last_token_likelihood)
             model.close()
+
+    def test_anti_repetition_sampling_defaults_and_overrides(self):
+        seen_kwargs = {}
+        class MockSamplingLlama(TokenCounter):
+            def __init__(self, **kwargs):
+                pass
+            def create_chat_completion(self, **kwargs):
+                seen_kwargs.update(kwargs)
+                yield {'choices': [{'delta': {'content': 'detailed response'}, 'finish_reason': 'stop'}]}
+            def close(self):
+                pass
+
+        model = LocalModel(context_size=1024)
+        self.assertEqual(model.temperature, 0.7)
+        self.assertEqual(model.repeat_penalty, 1.25)
+        self.assertEqual(model.default_max_tokens, 512)
+
+        model._model = MockSamplingLlama()
+        messages = [{'role': 'user', 'content': 'explain recursion'}]
+
+        # Default run inherits anti-repetition defaults and 512 tokens
+        ''.join(model.chat_stream(messages))
+        self.assertEqual(seen_kwargs['temperature'], 0.7)
+        self.assertEqual(seen_kwargs['repeat_penalty'], 1.25)
+        self.assertEqual(seen_kwargs['max_tokens'], 512)
+
+        # Explicit overrides work as expected
+        ''.join(model.chat_stream(messages, max_tokens=768, temperature=0.85, repeat_penalty=1.35))
+        self.assertEqual(seen_kwargs['temperature'], 0.85)
+        self.assertEqual(seen_kwargs['repeat_penalty'], 1.35)
+        self.assertEqual(seen_kwargs['max_tokens'], 768)

@@ -6,7 +6,7 @@ import atexit
 import threading
 from pathlib import Path
 from contextlib import nullcontext
-from typing import Iterator
+from typing import Iterator, Optional
 
 
 def bundled_model_path() -> Path:
@@ -14,10 +14,22 @@ def bundled_model_path() -> Path:
 
 
 class LocalModel:
-    def __init__(self, path: str = '', *, context_size: int = 2048, threads: int = 4):
+    def __init__(
+        self,
+        path: str = '',
+        *,
+        context_size: int = 2048,
+        threads: int = 4,
+        temperature: float = 0.7,
+        repeat_penalty: float = 1.25,
+        max_tokens: int = 512,
+    ):
         self.path = Path(path).expanduser() if path else bundled_model_path()
         self.context_size = context_size
         self.threads = threads
+        self.temperature = temperature
+        self.repeat_penalty = repeat_penalty
+        self.default_max_tokens = max_tokens
         self._model = None
         self.last_finish_reason = None
         self.last_token_likelihood = None
@@ -66,18 +78,39 @@ class LocalModel:
             # The chat history consists of system, user/assistant pairs, latest user.
             del kept[1:3]
 
-    def chat_stream(self, messages: list[dict[str, str]], max_tokens: int = 192) -> Iterator[str]:
+    def chat_stream(
+        self,
+        messages: list[dict[str, str]],
+        max_tokens: Optional[int] = None,
+        temperature: Optional[float] = None,
+        repeat_penalty: Optional[float] = None,
+    ) -> Iterator[str]:
         # llama-cpp contexts and the sampling observer are not safe to share
         # across overlapping generations. Separate LocalModel instances may run
         # concurrently; reject overlap on this one rather than corrupting it.
+        target_max_tokens = max_tokens if max_tokens is not None else self.default_max_tokens
+        target_temp = temperature if temperature is not None else self.temperature
+        target_penalty = repeat_penalty if repeat_penalty is not None else self.repeat_penalty
+
         if not self._generation_lock.acquire(blocking=False):
             raise RuntimeError('This local model is already generating a response.')
         try:
-            yield from self._chat_stream_locked(messages, max_tokens)
+            yield from self._chat_stream_locked(
+                messages,
+                target_max_tokens,
+                temperature=target_temp,
+                repeat_penalty=target_penalty,
+            )
         finally:
             self._generation_lock.release()
 
-    def _chat_stream_locked(self, messages: list[dict[str, str]], max_tokens: int) -> Iterator[str]:
+    def _chat_stream_locked(
+        self,
+        messages: list[dict[str, str]],
+        max_tokens: int,
+        temperature: float = 0.7,
+        repeat_penalty: float = 1.25,
+    ) -> Iterator[str]:
         self.last_finish_reason = None
         self.last_token_likelihood = None
         if not 1 <= max_tokens < self.context_size:
@@ -91,8 +124,14 @@ class LocalModel:
             recorder_context = nullcontext(None)
         pieces = []
         with recorder_context as recorder:
-            chunks = model.create_chat_completion(messages=fitted, max_tokens=max_tokens,
-                temperature=0.2, top_p=0.9, repeat_penalty=1.1, stream=True)
+            chunks = model.create_chat_completion(
+                messages=fitted,
+                max_tokens=max_tokens,
+                temperature=temperature,
+                top_p=0.9,
+                repeat_penalty=repeat_penalty,
+                stream=True,
+            )
             for chunk in chunks:
                 choice = chunk['choices'][0]
                 if choice.get('finish_reason'):

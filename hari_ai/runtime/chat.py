@@ -86,6 +86,19 @@ class ChatEngine:
         self.history = [ChatMessage(role='system', content=self.system_prompt)]
         self.memory.working.clear()
 
+    def _clean_repetitive_history(self, messages: list[dict[str, str]]) -> list[dict[str, str]]:
+        """Deduplicate consecutive identical assistant replies in context to break repetition loops."""
+        cleaned: list[dict[str, str]] = []
+        last_assistant_content: Optional[str] = None
+        for m in messages:
+            if m['role'] == 'assistant':
+                content = m['content'].strip().lower()
+                if last_assistant_content and content == last_assistant_content:
+                    continue
+                last_assistant_content = content
+            cleaned.append(m)
+        return cleaned
+
     def get_user_turns(self) -> List[str]:
         return [message.content for message in self.history if message.role == 'user']
 
@@ -134,14 +147,47 @@ class ChatEngine:
             answer = identity
             self.last_reply_succeeded = True
         elif self.settings.backend == 'local':
-            messages = [{'role': message.role, 'content': message.content} for message in self.history]
+            raw_messages = [{'role': message.role, 'content': message.content} for message in self.history]
+            messages = self._clean_repetitive_history(raw_messages)
             pieces = []
             if isinstance(self.local_model, LocalModel):
                 self.local_model.measure_token_likelihood = self.settings.show_confidence
+
+            recent_assistant_replies = [
+                m.content.strip().lower()
+                for m in self.history[:-1]
+                if m.role == 'assistant' and m.content.strip()
+            ][-2:]
+
             try:
-                for piece in self.local_model.chat_stream(messages):
-                    pieces.append(piece)
-                    yield piece
+                # Loop Detection Filter: check if generation loops on recent assistant replies
+                if isinstance(self.local_model, LocalModel) and recent_assistant_replies:
+                    gen_pieces = []
+                    for piece in self.local_model.chat_stream(messages):
+                        gen_pieces.append(piece)
+                    candidate = ''.join(gen_pieces).strip()
+
+                    if candidate and candidate.lower() in recent_assistant_replies:
+                        # Reject output and re-sample with higher temperature and purged repetitive turns
+                        purged_messages = [
+                            m for m in messages
+                            if m['role'] != 'assistant' or m['content'].strip().lower() not in recent_assistant_replies
+                        ]
+                        for piece in self.local_model.chat_stream(
+                            purged_messages,
+                            temperature=0.85,
+                            repeat_penalty=1.35,
+                        ):
+                            pieces.append(piece)
+                            yield piece
+                    else:
+                        for piece in gen_pieces:
+                            pieces.append(piece)
+                            yield piece
+                else:
+                    for piece in self.local_model.chat_stream(messages):
+                        pieces.append(piece)
+                        yield piece
             except (OSError, RuntimeError, ValueError) as exc:
                 # Failed turns must not pollute the next context as assistant answers.
                 self.history.pop()

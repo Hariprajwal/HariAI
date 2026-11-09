@@ -139,6 +139,67 @@ class TestChatEngine(unittest.TestCase):
         self.assertEqual(len(self.chat.history), 1)
         self.assertEqual(self.chat.get_user_turns(), [])
 
+    def test_clean_repetitive_history_deduplicates_consecutive_assistant_replies(self):
+        chat = ChatEngine(settings=ChatSettings())
+        raw = [
+            {'role': 'user', 'content': 'q1'},
+            {'role': 'assistant', 'content': 'What a great question!'},
+            {'role': 'user', 'content': 'q2'},
+            {'role': 'assistant', 'content': 'What a great question!'},
+            {'role': 'assistant', 'content': 'what a great question!'},
+            {'role': 'user', 'content': 'q3'},
+            {'role': 'assistant', 'content': 'A different distinct answer.'},
+        ]
+        cleaned = chat._clean_repetitive_history(raw)
+        assistant_contents = [m['content'] for m in cleaned if m['role'] == 'assistant']
+        # Repeated loop outputs deduplicated, distinct answer preserved
+        self.assertEqual(assistant_contents, ['What a great question!', 'A different distinct answer.'])
+
+    def test_loop_detection_filter_resamples_with_higher_temperature(self):
+        from hari_ai.runtime.local_model import LocalModel
+
+        class MockRepeatingLocalModel(LocalModel):
+            def __init__(self):
+                super().__init__()
+                self.calls = []
+                self.call_count = 0
+
+            def chat_stream(self, messages, max_tokens=None, temperature=None, repeat_penalty=None):
+                self.calls.append({
+                    'messages': messages,
+                    'temperature': temperature,
+                    'repeat_penalty': repeat_penalty,
+                })
+                self.call_count += 1
+                if self.call_count == 1:
+                    # Duplicate of the previous turn
+                    yield "What a great question!"
+                else:
+                    # Fresh resampled output
+                    yield "Here is the newly formulated answer."
+
+        mock_local = MockRepeatingLocalModel()
+        chat = ChatEngine(settings=ChatSettings(backend='local'), local_model=mock_local)
+        # Seed history with a previous assistant reply
+        from hari_ai.runtime.chat import ChatMessage
+        chat.history.append(ChatMessage(role='user', content='what can you do?'))
+        chat.history.append(ChatMessage(role='assistant', content='What a great question!'))
+
+        # Now ask a new question
+        result = ''.join(chat.chat_stream('tell me your capabilities'))
+
+        # Loop detection should reject 'What a great question!' and return the resampled output
+        self.assertEqual(result, 'Here is the newly formulated answer.')
+        self.assertEqual(mock_local.call_count, 2)
+        # Second call used elevated temperature and repeat penalty
+        self.assertEqual(mock_local.calls[1]['temperature'], 0.85)
+        self.assertEqual(mock_local.calls[1]['repeat_penalty'], 1.35)
+        # Purged repetitive assistant messages from resample call
+        resample_assistant_turns = [
+            m for m in mock_local.calls[1]['messages'] if m['role'] == 'assistant'
+        ]
+        self.assertEqual(resample_assistant_turns, [])
+
 
 if __name__ == '__main__':
     unittest.main()
