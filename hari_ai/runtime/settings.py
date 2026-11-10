@@ -33,29 +33,48 @@ class ChatSettings:
 
 
 def settings_path() -> Path:
-    return Path(os.environ.get('HARIAI_DATA_DIR', Path.home() / '.hari_ai')) / 'settings.json'
+    if 'HARIAI_DATA_DIR' in os.environ:
+        return Path(os.environ['HARIAI_DATA_DIR']) / 'settings.json'
+    try:
+        home_path = Path.home() / '.hari_ai'
+        if not home_path.exists():
+            home_path.mkdir(parents=True, exist_ok=True)
+        return home_path / 'settings.json'
+    except (PermissionError, OSError):
+        fallback = Path.cwd() / '.hari_ai'
+        try:
+            fallback.mkdir(parents=True, exist_ok=True)
+        except (PermissionError, OSError):
+            pass
+        return fallback / 'settings.json'
 
 
 def load_settings(path: Optional[Path] = None) -> ChatSettings:
-    path = path or settings_path()
-    if not path.exists():
+    try:
+        path = path or settings_path()
+        if not path.exists():
+            return ChatSettings()
+        values = json.loads(path.read_text(encoding='utf-8'))
+        if 'schema_version' not in values:
+            # Retire only the old implicit research default. Preserve custom Nano
+            # checkpoints and explicit Ollama selection during the upgrade.
+            if values.get('backend') == 'nano' and not values.get('nano_checkpoint'):
+                values['backend'] = 'local'
+            values['schema_version'] = 2
+        settings = ChatSettings(**values)
+        settings.validate()
+        return settings
+    except (PermissionError, OSError, ValueError, KeyError):
         return ChatSettings()
-    values = json.loads(path.read_text(encoding='utf-8'))
-    if 'schema_version' not in values:
-        # Retire only the old implicit research default. Preserve custom Nano
-        # checkpoints and explicit Ollama selection during the upgrade.
-        if values.get('backend') == 'nano' and not values.get('nano_checkpoint'):
-            values['backend'] = 'local'
-        values['schema_version'] = 2
-    settings = ChatSettings(**values)
-    settings.validate()
-    return settings
 
 
 def save_settings(settings: ChatSettings, path: Optional[Path] = None) -> None:
     settings.validate()
-    path = path or settings_path()
-    path.parent.mkdir(parents=True, exist_ok=True)
-    temporary = path.with_suffix('.tmp')
-    temporary.write_text(json.dumps(asdict(settings), indent=2) + '\n', encoding='utf-8')
-    os.replace(temporary, path)
+    try:
+        path = path or settings_path()
+        path.parent.mkdir(parents=True, exist_ok=True)
+        temporary = path.with_suffix('.tmp')
+        temporary.write_text(json.dumps(asdict(settings), indent=2) + '\n', encoding='utf-8')
+        os.replace(temporary, path)
+    except (PermissionError, OSError):
+        pass

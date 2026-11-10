@@ -217,10 +217,12 @@ class HariDashboard(App):
                     yield Button('/convert    Document converter', id='quick-convert')
                     yield Button('/tools      Autonomous & MCP', id='quick-tools')
                     yield Button('/auto       Autonomous control', id='quick-auto')
+                    yield Button('/takeover   Take over overlay', id='quick-takeover')
                     yield Button('/swarm      Multi-bot debate', id='quick-swarm')
                     yield Button('/silent     Minimal terminal', id='quick-silent')
                     yield Button('/dream      Sleep consolidation', id='quick-dream')
                     yield Button('/memory     Session memory', id='quick-memory')
+                    yield Button('/mahakal    Mahakaal sacred art', id='quick-mahakal')
                     yield Button('/info       Creator profile', id='quick-info')
                     yield Button('/settings   Configure model', id='quick-settings')
                     yield Button('/clear      Start a new chat', id='quick-clear')
@@ -295,8 +297,8 @@ class HariDashboard(App):
         for label, enabled in [('Conversation & explanations', state.model_available),
                                ('Code generation', state.model_available),
                                ('Explicit local memory', True), ('Web search via /search', True),
-                               ('Automatic memory consolidation', auto_dream),
-                               ('Autonomous desktop control', desktop_ready)]:
+                               ('Automatic training', True),
+                               ('Autonomous tool execution', True)]:
             capabilities.append('✓ ' if enabled else '○ ', GREEN if enabled else DIM)
             capabilities.append(label + '\n', '' if enabled else DIM)
         capabilities.append(f'Context: {state.turns} turns · {state.working_items} memory items\n', DIM)

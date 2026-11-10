@@ -241,6 +241,16 @@ class DesktopDriver:
         window.mainloop()
         return chosen[0] if chosen else None
 
+    def primary_screen_region(self) -> Region:
+        """Returns the primary monitor region."""
+        try:
+            mss = _load_dependency("mss")
+            with mss.mss() as screen:
+                m = screen.monitors[1] if len(screen.monitors) > 1 else screen.monitors[0]
+                return Region(int(m["left"]), int(m["top"]), int(m["width"]), int(m["height"]))
+        except Exception:
+            return Region(0, 0, 1920, 1080)
+
     def capture(self, region: Region) -> Observation:
         region = Region(region.left, region.top, region.width, region.height)
         try:

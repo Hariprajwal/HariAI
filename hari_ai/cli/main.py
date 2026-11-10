@@ -545,7 +545,9 @@ def cmd_autonomous(args: List[str] | str, *, emit=print) -> None:
     """Run a bounded autonomous desktop task through the configured local vision agent."""
     goal = " ".join(args) if isinstance(args, list) else str(args)
     if not goal.strip():
-        emit('Usage: /autonomous <desktop task>\nConfigure with /agent model NAME and /agent select first.')
+        emit('Usage: /autonomous <desktop task> (e.g., hari autonomous "Open browser and search PyPI")\n'
+             'Safety: Click [ Take over ] or press <Esc> on the floating pill anytime to regain control.\n'
+             'Tip: Enter /takeover to test the floating control window now.')
         emit(get_desktop_agent().status_text())
         return
     try:
@@ -555,14 +557,21 @@ def cmd_autonomous(args: List[str] | str, *, emit=print) -> None:
         emit(f'Autonomous mode could not run: {exc}')
 
 
+_ACTIVE_OVERLAY = None
+
+
 def cmd_takeover(*, emit=print) -> None:
     """Explicitly launches the floating Takeover Pill window on screen."""
+    global _ACTIVE_OVERLAY
     from hari_ai.agent.overlay import TakeoverOverlay
+    if _ACTIVE_OVERLAY and getattr(_ACTIVE_OVERLAY, 'is_active', False):
+        emit("✦ Floating Takeover Window is already active on screen at top center.")
+        return
     emit("✦ Floating Takeover Window Activated at top of screen!")
     emit("  Controls: [ Pause ]  [ Take over ]")
     emit("  Safety: Click [ Take over ] or press <Esc> to release control back to user.")
-    overlay = TakeoverOverlay()
-    overlay.start()
+    _ACTIVE_OVERLAY = TakeoverOverlay()
+    _ACTIVE_OVERLAY.start()
 
 
 def repl() -> None:

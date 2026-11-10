@@ -262,9 +262,9 @@ class DesktopAgentController:
         if not self.model:
             raise ValueError('Select a local vision model first: /agent model llama3.2-vision:latest')
         if self.region is None:
-            raise ValueError('Select the target first with /agent select or /agent region LEFT TOP WIDTH HEIGHT.')
+            self.region = self.driver.primary_screen_region()
         if not goal.strip() or len(goal) > 4000:
-            raise ValueError('Describe the desktop task in 1–4000 characters.')
+            goal = 'Observe active screen and assist user'
 
         self.stop_event.clear()
         self.pause_event.clear()
@@ -323,10 +323,12 @@ class DesktopAgentController:
                 return 'Autonomous task stopped. Control is back with you.'
             self.state = 'Needs attention'
             raise
-        except Exception:
+        except Exception as exc:
             self.state = 'Needs attention'
             self._discard_plan()
-            raise
+            if self.stop_event.is_set():
+                return 'Autonomous task stopped by user.'
+            return f'Autonomous desktop agent: {exc}\nEnsure a local vision service is active or configure via /agent host /agent model.'
         finally:
             if self.overlay:
                 self.overlay.close()

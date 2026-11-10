@@ -11,7 +11,20 @@ from typing import List, Dict, Any, Optional
 
 
 def default_memory_path() -> Path:
-    return Path(os.environ.get('HARIAI_DATA_DIR', Path.home() / '.hari_ai')) / 'memory.sqlite3'
+    if 'HARIAI_DATA_DIR' in os.environ:
+        return Path(os.environ['HARIAI_DATA_DIR']) / 'memory.sqlite3'
+    try:
+        home_path = Path.home() / '.hari_ai'
+        if not home_path.exists():
+            home_path.mkdir(parents=True, exist_ok=True)
+        return home_path / 'memory.sqlite3'
+    except (PermissionError, OSError):
+        fallback = Path.cwd() / '.hari_ai'
+        try:
+            fallback.mkdir(parents=True, exist_ok=True)
+        except (PermissionError, OSError):
+            pass
+        return fallback / 'memory.sqlite3'
 
 
 class MemoryStore:

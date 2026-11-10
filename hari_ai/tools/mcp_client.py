@@ -65,8 +65,18 @@ class MCPTool:
 
 
 def get_mcp_config_path() -> Path:
-    base = Path(os.environ.get("HARIAI_HOME", Path.home() / ".hari_ai"))
-    base.mkdir(parents=True, exist_ok=True)
+    if "HARIAI_HOME" in os.environ:
+        base = Path(os.environ["HARIAI_HOME"])
+    else:
+        try:
+            base = Path.home() / ".hari_ai"
+            base.mkdir(parents=True, exist_ok=True)
+        except (PermissionError, OSError):
+            base = Path.cwd() / ".hari_ai"
+    try:
+        base.mkdir(parents=True, exist_ok=True)
+    except (PermissionError, OSError):
+        pass
     return base / "mcp_servers.json"
 
 
