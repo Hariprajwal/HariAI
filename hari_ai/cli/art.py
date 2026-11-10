@@ -155,6 +155,90 @@ def get_mahakal_ascii(width: int = 14, height: int = 5) -> Text:
         return _fallback_text(width, height)
 
 
+def get_mahakal_braille(width: int = 16, height_lines: int = 6) -> Text:
+    """Renders Mahakaal using high-density 2x4 sub-pixel Unicode Braille art.
+
+    Braille provides 4x the pixel resolution of half-blocks (32x24 sub-pixels in 16x6 cells),
+    yielding razor-sharp curved outlines for the crescent moon, trishul, and third eye.
+    """
+    pixel_w = width * 2
+    pixel_h = height_lines * 4
+    try:
+        from PIL import Image, ImageOps, ImageEnhance
+        path = find_mahakal_path()
+        if not path:
+            return _fallback_text(width, height_lines)
+
+        img = Image.open(path).convert("L")
+        w_img, h_img = img.size
+        # Focus on upper silhouette (moon, third eye, trishul head)
+        img = img.crop((int(w_img * 0.05), int(h_img * 0.02), int(w_img * 0.95), int(h_img * 0.70)))
+        enh = ImageEnhance.Contrast(img).enhance(2.8)
+        img_resized = ImageOps.contain(enh, (pixel_w, pixel_h), method=Image.Resampling.LANCZOS)
+
+        canvas = Image.new("L", (pixel_w, pixel_h), 0)
+        x = max(0, (pixel_w - img_resized.width) // 2)
+        y = max(0, (pixel_h - img_resized.height) // 2)
+        canvas.paste(img_resized, (x, y))
+
+        out = Text()
+        # Braille 2x4 dot mapping
+        dot_offsets = [
+            (0, 0, 1), (0, 1, 2), (0, 2, 4),
+            (1, 0, 8), (1, 1, 16), (1, 2, 32),
+            (0, 3, 64), (1, 3, 128)
+        ]
+        threshold = 55
+        for r in range(0, pixel_h, 4):
+            for c in range(0, pixel_w, 2):
+                code = 0
+                for dx, dy, bit in dot_offsets:
+                    px = c + dx
+                    py = min(pixel_h - 1, r + dy)
+                    if canvas.getpixel((px, py)) > threshold:
+                        code |= bit
+                braille_char = chr(0x2800 + code) if code else " "
+                out.append(braille_char, style=Style(color="#c17aff"))
+            if r < pixel_h - 4:
+                out.append("\n")
+        return out
+    except Exception:
+        return _fallback_text(width, height_lines)
+
+
+def get_mahakal_trinetra() -> Text:
+    """Renders the sacred Tripundra (3 ash lines) with glowing Trinetra and crescent moon."""
+    t = Text()
+    t.append("       🌙  ✦ MAHAKAAL ✦\n", style=Style(color="#eac4ff", bold=True))
+    t.append("  ════════════════════════════\n", style=Style(color="#a34ff4", bold=True))
+    t.append("  ══════════ ( 👁 ) ══════════\n", style=Style(color="#ffffff", bold=True))
+    t.append("  ════════════════════════════\n", style=Style(color="#a34ff4", bold=True))
+    t.append("       OM NAMAH SHIVAYA", style=Style(color="#d59eff"))
+    return t
+
+
+def get_mahakal_trishul() -> Text:
+    """Renders the sacred Mahatrisula & Damru (Cosmic Trident & Drum) in geometric Unicode."""
+    t = Text()
+    t.append("          ▲\n", style=Style(color="#eac4ff", bold=True))
+    t.append("        \\ █ /\n", style=Style(color="#c17aff", bold=True))
+    t.append("      ───(ॐ)───\n", style=Style(color="#ffffff", bold=True))
+    t.append("       /  █  \\\n", style=Style(color="#c17aff", bold=True))
+    t.append("         [⋈]   \n", style=Style(color="#eac4ff", bold=True))
+    t.append("          █    \n", style=Style(color="#a34ff4"))
+    t.append("          █    ", style=Style(color="#a34ff4"))
+    return t
+
+
+def get_mahakal_mantra() -> Text:
+    """Renders the sacred Mahamrityunjaya Mantra in Sanskrit typography."""
+    t = Text()
+    t.append("ॐ त्र्यम्बकं यजामहे सुगन्धिं पुष्टिवर्धनम् ।\n", style=Style(color="#ffffff", bold=True))
+    t.append("उर्वारुकमिव बन्धनान्मृत्योर्मुक्षीय मामृतात् ॥\n\n", style=Style(color="#eac4ff", bold=True))
+    t.append("✦ MAHAKAAL · THE ETERNAL CONQUEROR OF TIME ✦", style=Style(color="#c17aff", bold=True))
+    return t
+
+
 def _fallback_text(width: int, height_lines: int) -> Text:
     out = Text()
     for i in range(height_lines):
@@ -164,9 +248,24 @@ def _fallback_text(width: int, height_lines: int) -> Text:
     return out
 
 
-def get_mahakal_panel(width: int = 64, height_lines: int = 16, border_style: str = "#b77bea") -> Panel:
-    """Creates a full-width Rich Panel enclosing high-definition Mahakaal graphic."""
-    text = get_mahakal_text(width=width, height_lines=height_lines, bg_hex="#0c0911")
+def get_mahakal_panel(
+    width: int = 64,
+    height_lines: int = 16,
+    border_style: str = "#b77bea",
+    mode: str = "blocks",
+) -> Panel:
+    """Creates a full-width Rich Panel enclosing Mahakaal artwork in the requested representation."""
+    if mode == "braille":
+        text = get_mahakal_braille(width=width, height_lines=height_lines)
+    elif mode == "trinetra":
+        text = get_mahakal_trinetra()
+    elif mode == "trishul":
+        text = get_mahakal_trishul()
+    elif mode == "mantra":
+        text = get_mahakal_mantra()
+    else:
+        text = get_mahakal_text(width=width, height_lines=height_lines, bg_hex="#0c0911")
+
     return Panel(
         text,
         title="[bold #c17aff]✦ MAHAKAAL · DIVINE INSPIRATION ✦[/bold #c17aff]",

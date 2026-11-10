@@ -99,12 +99,19 @@ def cmd_info(*, emit=print) -> None:
     emit("=" * 60 + "\n")
 
 
-def cmd_mahakal(*, emit=print) -> None:
+def cmd_mahakal(args: Optional[List[str] | str] = None, *, emit=print) -> None:
     """Render the sacred Mahakaal terminal graphic inside purple panel."""
     from hari_ai.cli.art import get_mahakal_panel
     from rich.console import Console
+
+    mode = "blocks"
+    if args:
+        raw_mode = (args[0] if isinstance(args, list) else str(args)).lower().strip()
+        if raw_mode in ("braille", "trinetra", "trishul", "mantra", "blocks"):
+            mode = raw_mode
+
     console = Console(color_system="truecolor")
-    panel = get_mahakal_panel(width=72, height_lines=14)
+    panel = get_mahakal_panel(width=72, height_lines=14, mode=mode)
     console.print(panel)
 
 
@@ -511,18 +518,29 @@ def cmd_autonomous(args: List[str] | str, *, emit=print) -> None:
       - System 1: Open-JEV & Sub-Millisecond Input Execution
       - System 2: HariAI Deliberate Thinking
       - System 3: Open Web & Web Search Fallback
-    Displays floating 'Take over' pill & purple screen edge glow.
+    Displays floating 'Take over' pill & purple screen edge glow with [ Pause ] and [ Take over ].
     """
     goal = " ".join(args) if isinstance(args, list) else str(args)
     if not goal.strip():
-        emit("Usage: hari autonomous \"<goal>\"  (e.g., hari autonomous \"Open browser and search PyPI\")")
-        emit("Safety: Click 'Take over' on the floating pill or hit <Esc> anytime to regain control.")
-        return
+        goal = "Interactive autonomous desktop session"
+        emit("✦ Activating Autonomous Control Mode...")
+        emit("  Opening Floating Takeover Window: [ Pause ]  [ Take over ]")
+        emit("  Safety: Click [ Take over ] or press <Esc> anytime to release control.")
 
     from hari_ai.agent.autonomous import AutonomousAgent
     agent = AutonomousAgent()
     res = agent.run(goal, emit=emit)
     emit(f"\nAutonomous result: {res.status} ({res.total_steps} steps)")
+
+
+def cmd_takeover(*, emit=print) -> None:
+    """Explicitly launches the floating Takeover Pill window on screen."""
+    from hari_ai.agent.overlay import TakeoverOverlay
+    emit("✦ Floating Takeover Window Activated at top of screen!")
+    emit("  Controls: [ Pause ]  [ Take over ]")
+    emit("  Safety: Click [ Take over ] or press <Esc> to release control back to user.")
+    overlay = TakeoverOverlay()
+    overlay.start()
 
 
 def repl() -> None:
@@ -670,7 +688,7 @@ def dashboard_command(command: str, argument: str, *, emit=None) -> str:
                 '/exit               Exit HariAI\n\n'
                 'Enter: send · Up/Down: input history · Esc: stop reply\n'
                 'F2: show/hide panels · Ctrl+L: new chat · Ctrl+Q: quit')
-    no_args = {'/status': cmd_status, '/info': cmd_info, '/version': cmd_version, '/tools': cmd_tools}
+    no_args = {'/status': cmd_status, '/info': cmd_info, '/version': cmd_version, '/tools': cmd_tools, '/takeover': cmd_takeover}
     text_args = {
         '/search': cmd_search,
         '/decide': cmd_decide,
@@ -681,9 +699,15 @@ def dashboard_command(command: str, argument: str, *, emit=None) -> str:
     }
     list_args = {'/settings': cmd_settings, '/memory': cmd_memory, '/dream': cmd_dream, '/convert': cmd_convert, '/mcp': cmd_mcp}
     if command in ('/mahakal', '/shiva'):
-        return ("✦ Om Namah Shivaya ✦\n"
-                "Mahakaal: The Eternal, Timeless Protector & Spiritual Inspiration of HariAI.\n"
-                "Inspired by Lord Shiva — Transcending boundaries through perseverance and focus.")
+        mode = argument.strip().lower() if argument.strip() else 'trinetra'
+        from hari_ai.cli.art import get_mahakal_panel
+        from rich.console import Console
+        import io
+        buf = io.StringIO()
+        console = Console(file=buf, color_system="truecolor", force_terminal=True, width=72)
+        panel = get_mahakal_panel(width=68, height_lines=12, mode=mode)
+        console.print(panel)
+        return buf.getvalue().strip()
     if command == '/cluster' and argument.lower().startswith('debate'):
         cmd_swarm(argument[6:].strip(), emit=lines.append)
     elif command in no_args:
@@ -746,7 +770,9 @@ def main():
     elif cmd in ["swarm", "debate", "cluster-debate"]:
         cmd_swarm(" ".join(all_args))
     elif cmd in ["mahakal", "shiva"]:
-        cmd_mahakal()
+        cmd_mahakal(all_args)
+    elif cmd in ["takeover", "overlay"]:
+        cmd_takeover()
     elif cmd == "ask":
         cmd_ask(" ".join(all_args))
     elif cmd == "think":

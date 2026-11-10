@@ -28,7 +28,11 @@ import time
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
 from hari_ai.agent.desktop import Action, Decision, DesktopCancelled, DesktopDriver, DesktopError, Region
+from hari_ai.agent.overlay import TakeoverOverlay
 from hari_ai.search.engine import SearchEngine
+
+
+AutonomousOverlay = TakeoverOverlay
 
 
 @dataclass
@@ -53,106 +57,6 @@ class AutonomousResult:
     steps: List[AutonomousStep]
     interrupted_by_user: bool = False
     error: Optional[str] = None
-
-
-class AutonomousOverlay:
-    """Floating Take Over Pill and screen perimeter indicator.
-
-    Renders a purple-themed floating pill at top-center of screen:
-    '● HariAI has control   [ Take over ]'
-    with subtle purple glowing border around screen edges.
-    Clicking 'Take over' or pressing Esc immediately disengages the bot.
-    """
-
-    def __init__(self, stop_event: threading.Event, on_takeover: Optional[Callable[[], None]] = None):
-        self.stop_event = stop_event
-        self.on_takeover = on_takeover
-        self._thread: Optional[threading.Thread] = None
-        self._root = None
-        self._active = False
-
-    def start(self) -> None:
-        try:
-            import tkinter as tk
-            self._thread = threading.Thread(target=self._run_tk, daemon=True)
-            self._thread.start()
-        except Exception:
-            self._active = False
-
-    def _run_tk(self) -> None:
-        try:
-            import tkinter as tk
-            root = tk.Tk()
-            self._root = root
-            root.title("HariAI Autonomous Control")
-            root.overrideredirect(True)
-            root.wm_attributes("-topmost", True)
-
-            sw = root.winfo_screenwidth()
-            sh = root.winfo_screenheight()
-
-            # Pill dimensions
-            pill_w = 280
-            pill_h = 44
-            x = max(0, (sw - pill_w) // 2)
-            y = 12
-            root.geometry(f"{pill_w}x{pill_h}+{x}+{y}")
-            root.configure(bg="#0c0912")
-
-            # Border frame with purple accent
-            frame = tk.Frame(root, bg="#0c0912", highlightbackground="#9d4edd", highlightthickness=2)
-            frame.pack(fill="both", expand=True, padx=1, pady=1)
-
-            # Dot & text label
-            dot = tk.Label(frame, text="●", fg="#c17aff", bg="#0c0912", font=("Helvetica", 11, "bold"))
-            dot.pack(side="left", padx=(10, 2))
-
-            lbl = tk.Label(frame, text="HariAI has control", fg="#f0e6ff", bg="#0c0912", font=("Segoe UI", 10, "bold"))
-            lbl.pack(side="left", padx=4)
-
-            def _trigger_takeover(event=None):
-                self.stop_event.set()
-                if self.on_takeover:
-                    try:
-                        self.on_takeover()
-                    except Exception:
-                        pass
-                self.close()
-
-            btn = tk.Button(
-                frame,
-                text="Take over",
-                bg="#ffffff",
-                fg="#0c0912",
-                activebackground="#d59eff",
-                activeforeground="#000000",
-                font=("Segoe UI", 9, "bold"),
-                relief="flat",
-                padx=8,
-                pady=2,
-                cursor="hand2",
-                command=_trigger_takeover,
-            )
-            btn.pack(side="right", padx=10, pady=6)
-
-            root.bind("<Escape>", _trigger_takeover)
-            self._active = True
-            root.mainloop()
-        except Exception:
-            self._active = False
-
-    def close(self) -> None:
-        if self._root:
-            try:
-                self._root.after(0, self._root.destroy)
-            except Exception:
-                pass
-            self._root = None
-        self._active = False
-
-    @property
-    def is_active(self) -> bool:
-        return self._active
 
 
 class System1FastReflex:

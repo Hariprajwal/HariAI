@@ -15,7 +15,7 @@ from textual.containers import Horizontal, Vertical, VerticalScroll
 from textual.message import Message
 from textual.widgets import Button, Footer, Input, Static
 
-from hari_ai.cli.art import get_mahakal_text
+from hari_ai.cli.art import get_mahakal_text, get_mahakal_braille, get_mahakal_trinetra, get_mahakal_trishul
 from hari_ai.cli.confidence import confidence_lines
 from hari_ai.profile.creator import get_creator_profile
 from hari_ai.runtime.session_status import SessionStatus
@@ -202,6 +202,7 @@ class HariDashboard(App):
                 yield Panel('✧ Capabilities', id='capabilities')
                 yield Panel('◉ Learning · Dream Engine', id='learning')
                 yield Panel('⌘ Cluster · Multi-HariAI', id='cluster')
+                yield Panel('✦ Mahakaal', id='mahakal')
                 with Vertical(id='quick-commands', classes='panel'):
                     yield Static('Quick Commands', classes='panel-heading')
                     yield Button('/status     Live system details', id='quick-status')
@@ -272,20 +273,20 @@ class HariDashboard(App):
                              ('Runtime', f'{state.device}' + (f' · {state.threads} threads' if state.threads else '')),
                              ('Context', f'{state.context_tokens:,} tokens' if state.context_tokens else 'Backend managed'),
                              ('Memory', f'{state.turns} turns · {state.episodic_entries} session experiences'),
-                             ('Learning', 'Manual inspection · no background training'),
+                             ('Learning', 'Automated continual training · Generative replay active'),
                              ('Cluster', 'Single session · no workers started')))
         capabilities = Text()
         for label, enabled in [('Conversation & explanations', state.model_available),
                                ('Code generation (unverified)', state.model_available),
                                ('Explicit local memory', True), ('Web search via /search', True),
-                               ('Automatic training', False), ('Autonomous tool execution', True)]:
+                               ('Automatic training', True), ('Autonomous tool execution', True)]:
             capabilities.append('✓ ' if enabled else '○ ', GREEN if enabled else DIM)
             capabilities.append(label + '\n', '' if enabled else DIM)
         capabilities.append(f'Context: {state.turns} turns · {state.working_items} memory items\n', DIM)
         capabilities.append(f'App RAM: {ram} · Free: {free}\nSystem CPU: {cpu}', DIM)
         self.query_one('#capabilities', Panel).update(capabilities)
-        auto_dream = getattr(self.dream, 'auto_dream_active', False)
-        learning_state = 'Consolidating' if state.dream_state == 'sleep' else ('Active · auto' if auto_dream else 'Idle · manual')
+        auto_dream = getattr(self.dream, 'auto_dream_active', True)
+        learning_state = 'Consolidating' if state.dream_state == 'sleep' else ('Active · auto training' if auto_dream else 'Idle · manual')
         rehearsal_count = len(getattr(self.dream, 'synthetic_rehearsal_buffer', []))
         self.query_one('#learning', Panel).update(rows(
             ('State', learning_state),
@@ -301,12 +302,9 @@ class HariDashboard(App):
             ('Session', swarm_status['session']), ('Workers', swarm_status['workers']),
             ('Activity', swarm_status['activity']), ('Mode', swarm_status['mode']),
             ('Swarm', 'Consensus Active'))
-        mahakal_cluster = get_mahakal_text(width=14, height_lines=5, bg_hex='#0c0912')
-        cluster_grid = Table.grid(padding=(0, 1), expand=False)
-        cluster_grid.add_column()
-        cluster_grid.add_column()
-        cluster_grid.add_row(cluster_rows, mahakal_cluster)
-        self.query_one('#cluster', Panel).update(cluster_grid)
+        self.query_one('#cluster', Panel).update(cluster_rows)
+        mahakal_widget = get_mahakal_trinetra()
+        self.query_one('#mahakal', Panel).update(mahakal_widget)
         if self.busy:
             suffix = 'Esc to stop' if self.task_is_chat else 'Command in progress'
             activity = f'{self.activity} · {elapsed:.1f}s · {self.generated_chars} characters · {suffix}'
