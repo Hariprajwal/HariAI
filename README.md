@@ -50,10 +50,10 @@ MCP tool actions start only after you give an explicit task.
 Maximize the terminal for the two-column layout (112 columns or more). On narrow
 windows, **F2** switches between chat and the panels. **Esc** stops a streaming
 reply; **Ctrl+L** starts a new chat; **Ctrl+Q** quits; **Up/Down** recall input.
-The Mahakaal panel loads the packaged PNG and renders it in high-contrast
-half-cell color blocks. This avoids terminal graphics protocols that can leave
-stale rows in a live Textual screen. The displayed image keeps its aspect ratio;
-installations without the image widget use the larger built-in renderer.
+The Mahakaal panel uses a high-density, colour-preserving Braille rendering of
+the packaged artwork. This avoids terminal graphics protocols that can leave
+stale rows in a live Textual screen while preserving more detail than enlarged
+half-cell colour blocks.
 Use `/info` for the creator card, `/settings show` for configuration, and `/help`
 for commands. Existing commands remain available inside the dashboard.
 `hari run --plain` keeps the line-based interface; redirected input/output use it

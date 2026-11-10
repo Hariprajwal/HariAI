@@ -8,7 +8,7 @@ Use a layered local perception path for desktop tasks:
    Windows UI Automation provides control names, text, roles, bounds, and
    supported actions through control patterns. That is more direct than reading
    pixels for standard buttons and text fields.
-2. Add optional RapidOCR for text-heavy screens. Pass recognized text, each
+2. Add optional local OCR for text-heavy screens. Pass recognized text, each
    line's bounding box, and OCR score to the planner together with the current
    screenshot. Keep the selected-region bounds and require a fresh screenshot
    before acting.
@@ -21,7 +21,7 @@ recognizer score, not a probability that a proposed click is correct. A low
 score, ambiguous match, stale screenshot, or control outside the selected
 region must stop the action and ask for another observation.
 
-## Engine choice
+## Engine choice and current implementation
 
 [RapidOCR's official guide](https://github.com/RapidAI/RapidOCRDocs/blob/main/docs/install_usage/rapidocr/usage.en.md)
 returns text, confidence scores, and four-point text boxes, and supports paths,
@@ -36,15 +36,17 @@ also returns text, boxes, and per-line scores, but on Windows it requires
 PyTorch/torchvision setup and downloads the selected language weights by default.
 That is a less suitable default for HariAI's small, offline-first install.
 
-This proposal is an enhancement to the current local vision route, not a claim
-that OCR is already integrated into autonomous tasks. The current agent still
-requires a locally installed vision-capable Ollama model and a user-selected
-screen region.
+HariAI exposes this as an optional `.[ocr]` extra. The current implementation
+uses EasyOCR only when `/agent ocr on` is selected, with `download_enabled=False`.
+It reads a previously selected region through `/agent read`, and adds bounded
+text, 0–1000 bounding boxes, and recognition scores to a local vision plan.
+No OCR model is bundled in the base wheel, no model is downloaded by HariAI,
+and OCR does not authorize a click or establish task completion. A local vision
+model and a user-selected screen region are still required for autonomous
+actions.
 
 ## Dashboard image rendering
 
-The Mahakaal artwork is static, so the dashboard uses colored half-cell
-rendering. The `textual-image` project documents flicker and redraw limitations
-for Sixel inside Textual; avoiding those terminal graphics protocols keeps the
-live panel renderer stable while retaining the packaged PNG's colors and aspect
-ratio.
+The Mahakaal artwork is static, so the dashboard uses high-density coloured
+Braille rendering. Avoiding terminal graphics protocols keeps the live panel
+renderer stable while retaining more detail than enlarged half-cell blocks.

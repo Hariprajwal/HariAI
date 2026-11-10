@@ -12,6 +12,7 @@ import time
 from typing import Callable
 
 from hari_ai.agent.desktop import DesktopCancelled, DesktopDriver, Region, parse_decision
+from hari_ai.agent.ocr import LocalScreenOCR, OCRUnavailable, planner_context
 from hari_ai.agent.overlay import TakeoverOverlay
 from hari_ai.agent.vision import OllamaVisionClient
 from hari_ai.runtime.settings import settings_path
@@ -42,6 +43,8 @@ class DesktopAgentController:
         self.max_observation_age = max_observation_age
         self.model = ''
         self.host = 'http://127.0.0.1:11434'
+        self.ocr_enabled = False
+        self.ocr = LocalScreenOCR()
         self.region: Region | None = None
         self.state = 'Not configured'
         self.goal = ''
@@ -59,9 +62,13 @@ class DesktopAgentController:
         try:
             if self.config_path.is_file():
                 config = json.loads(self.config_path.read_text(encoding='utf-8'))
-                self.model, self.host = config['model'], config['host']
+                if not isinstance(config, dict):
+                    raise ValueError('configuration must be an object')
+                self.model = config.get('model', '')
+                self.host = config.get('host', self.host)
+                self.ocr_enabled = bool(config.get('ocr_enabled', False))
                 self.vision_factory(host=self.host, model=self.model)
-                self.state = 'Select a region'
+                self.state = 'Select a region' if self.model else 'Select a vision model'
         except (OSError, ValueError, KeyError, TypeError) as exc:
             self.model = ''
             self.config_error = f'Agent configuration could not be loaded: {exc}'
@@ -77,6 +84,14 @@ class DesktopAgentController:
     def _discard_plan(self) -> None:
         self.pending = self.observation = None
         self.pending_id = ''
+
+    def _save_config(self) -> None:
+        self.config_path.parent.mkdir(parents=True, exist_ok=True)
+        temporary = self.config_path.with_suffix('.tmp')
+        temporary.write_text(json.dumps({
+            'model': self.model, 'host': self.host, 'ocr_enabled': self.ocr_enabled,
+        }, indent=2) + '\n', encoding='utf-8')
+        os.replace(temporary, self.config_path)
 
     def stop(self) -> None:
         self.stop_event.set()
@@ -98,14 +113,26 @@ class DesktopAgentController:
             raise ValueError('Specify the name of an installed local vision model.')
         selected_host = host or self.host
         self.vision_factory(host=selected_host, model=model)
-        self.config_path.parent.mkdir(parents=True, exist_ok=True)
-        temporary = self.config_path.with_suffix('.tmp')
-        temporary.write_text(json.dumps({'model': model, 'host': selected_host}, indent=2) + '\n', encoding='utf-8')
-        os.replace(temporary, self.config_path)
         self.model, self.host = model, selected_host
+        self._save_config()
         self._discard_plan()
         self.state = 'Ready' if self.region else 'Select a region'
         return f'Desktop vision model: {model}\nLocal service: {selected_host}\nOrdinary chat remains on its selected backend.'
+
+    def configure_host(self, host: str) -> str:
+        """Store a loopback service endpoint before or after choosing a model."""
+        self.vision_factory(host=host, model=self.model)
+        self.host = host
+        self._save_config()
+        self._discard_plan()
+        self.state = 'Ready' if self.model and self.region else ('Select a region' if self.model else 'Select a vision model')
+        return f'Desktop vision service: {host}\nChoose a vision model with /agent model NAME.'
+
+    def configure_ocr(self, enabled: bool) -> str:
+        self.ocr_enabled = enabled
+        self._save_config()
+        return ('Local OCR enabled. It uses only pre-provisioned local weights and never downloads them automatically.'
+                if enabled else 'Local OCR disabled. Desktop tasks will use the selected vision model only.')
 
     def set_region(self, region: Region) -> str:
         self.region = region
@@ -118,6 +145,7 @@ class DesktopAgentController:
         return (f'Desktop agent: {s.state}\nVision model: {s.model}\nRegion: {s.region}\n'
                 f'Actions executed: {s.steps}/{s.max_steps}\n'
                 f'Pending approval: {s.pending_id or "none"}\n'
+                f'Local OCR: {"enabled" if self.ocr_enabled else "off"} (optional; no automatic downloads)\n'
                 'Screenshots stay in this session and go only to the configured local vision service.\n'
                 'No background watching or automatic message replies are running.'
                 + (f'\n{self.config_error}' if self.config_error else ''))
@@ -137,7 +165,8 @@ class DesktopAgentController:
         observation = self.driver.capture(self.region)
         self.state = 'Planning'
         emit('Planning the next desktop action…\n')
-        raw = client.decide(self.goal, observation.png, self.history, stop_event=self.stop_event)
+        raw = client.decide(self.goal, observation.png, self.history, stop_event=self.stop_event,
+                            ocr_context=self._ocr_context(observation.png, emit))
         self._check_stop()
         decision = parse_decision(raw)
         if decision.done:
@@ -169,6 +198,37 @@ class DesktopAgentController:
         self.last_action = ''
         self.history = []
         return self._plan(emit)
+
+    def _ocr_context(self, png: bytes, emit: Callable[[str], None]) -> str:
+        if not self.ocr_enabled:
+            return ''
+        try:
+            lines = self.ocr.read(png)
+        except OCRUnavailable as exc:
+            emit(f'Local OCR unavailable: {exc} Continuing with vision-only planning.\n')
+            return ''
+        context = planner_context(lines)
+        emit(f'Local OCR found {len(lines)} text line(s); treating text as untrusted context.\n')
+        return context
+
+    def read_text(self, emit: Callable[[str], None]) -> str:
+        """Read the selected region locally; this does not contact the vision model or click anything."""
+        if self.region is None:
+            raise ValueError('Select the target first with /agent select or /agent region LEFT TOP WIDTH HEIGHT.')
+        self.stop_event.clear()
+        self.state = 'Reading selected region'
+        emit('Reading text in the selected region locally…\n')
+        observation = self.driver.capture(self.region)
+        self._check_stop()
+        lines = self.ocr.read(observation.png)
+        self.state = 'Ready' if self.model else 'Select a vision model'
+        if not lines:
+            return 'No readable text was found in the selected region. No action was taken.'
+        rendered = '\n'.join(
+            f'[{line.confidence:.0%} · {line.box[0]},{line.box[1]}–{line.box[2]},{line.box[3]}] {line.text}'
+            for line in lines
+        )
+        return ('Local OCR result (recognition scores, not answer accuracy or action approval):\n' + rendered)
 
     def approve(self, approval_id: str, emit: Callable[[str], None]) -> str:
         self._check_stop()
@@ -232,7 +292,8 @@ class DesktopAgentController:
                 emit(f'\nStep {self.steps + 1}/{self.max_steps}: observing the selected region…\n')
                 observation = self.driver.capture(self.region)
                 self.state = 'Planning'
-                raw = client.decide(self.goal, observation.png, self.history, stop_event=self.stop_event)
+                raw = client.decide(self.goal, observation.png, self.history, stop_event=self.stop_event,
+                                    ocr_context=self._ocr_context(observation.png, emit))
                 self._check_stop()
                 decision = parse_decision(raw)
                 emit(decision.summary + '\n')
@@ -287,6 +348,8 @@ class DesktopAgentController:
                     '/agent run TASK                Observe and propose the next action\n'
                     '/agent approve ID              Execute the displayed action once\n'
                     '/agent auto TASK               Execute a bounded task with Pause/Take over controls\n'
+                    '/agent ocr on|off              Enable or disable optional local OCR\n'
+                    '/agent read                    Read selected-region text locally (no action)\n'
                     '/agent refresh                 Re-observe and propose a fresh action\n'
                     '/agent stop                    Stop and discard pending actions\n'
                     '/agent status                  See task state\n\n'
@@ -299,7 +362,14 @@ class DesktopAgentController:
             if command == 'model':
                 return self.configure(rest.strip())
             if command == 'host':
-                return self.configure(self.model, rest.strip())
+                return self.configure_host(rest.strip())
+            if command == 'ocr':
+                choice = rest.strip().lower()
+                if choice not in ('on', 'off'):
+                    raise ValueError('Usage: /agent ocr on|off')
+                return self.configure_ocr(choice == 'on')
+            if command == 'read':
+                return self.read_text(emit)
             if command == 'region':
                 parts = shlex.split(rest)
                 if len(parts) != 4:

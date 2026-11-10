@@ -35,6 +35,7 @@ from hari_ai.memory.store import MemoryStore
 from hari_ai.runtime.settings import load_settings, save_settings, settings_path
 from hari_ai.version import __version__
 from hari_ai.cli.confidence import confidence_lines
+from hari_ai.cli.command_prompts import missing_input_prompt
 
 
 BANNER = r"""
@@ -583,12 +584,25 @@ def repl() -> None:
         _DREAM_CONTROLLER.notify_user_activity()
 
         lower = user_input.lower()
+        follow_up = missing_input_prompt(user_input)
+        if follow_up:
+            print(follow_up.question)
+            try:
+                answer = get_user_input()
+            except (KeyboardInterrupt, EOFError):
+                print('\nCommand cancelled.')
+                continue
+            if not answer or answer.lower() in {'/cancel', 'cancel'}:
+                print('Command cancelled.\n')
+                continue
+            user_input = f'{follow_up.prefix} {answer}'
+            lower = user_input.lower()
         if lower in ["exit", "quit", "/exit", "/quit", ":q", "bye"]:
             sys.exit(0)
-        elif lower in ["/dashboard", "dashboard", "/ui", "ui"]:
+        elif lower in ["/dashboard", "dashboard", "/ui", "ui", "/grand", "grand"]:
             return "switch_to_dashboard"
         elif lower in ["/silent", "silent"]:
-            print("Already in silent terminal mode. Enter /dashboard to switch to the full dashboard UI.\n")
+            print("Already in silent terminal mode. Enter /grand to return to the full HariAI dashboard.\n")
         elif lower in ["clear", "/clear"]:
             _CHAT_ENGINE.clear_history()
             print("Conversation history reset. Ready for a new topic!\n")
@@ -610,7 +624,7 @@ def repl() -> None:
             print("  /code <task>        - Request code from the local model")
             print("  /dream [now|auto|research|status] - Continual learning & generative replay")
             print("  /memory [status]    - Inspect hierarchical memory levels")
-            print("  /dashboard          - Return to full interactive terminal dashboard")
+            print("  /grand              - Return to the full HariAI dashboard")
             print("  /settings [show|backend|ollama-model|list-models|confidence] - Configure chat")
             print("  /clear              - Reset multi-turn conversation context")
             print("  /info               - Display Creator Profile (K R Hari Prajwal)")
@@ -652,6 +666,16 @@ def repl() -> None:
         elif lower.startswith('/mcp') or lower.startswith('mcp'):
             parts = shlex.split(user_input, posix=False)
             cmd_mcp(parts[1:] if len(parts) > 1 else [])
+        elif lower.startswith('/agent') or lower.startswith('agent'):
+            _, _, argument = user_input.partition(' ')
+            try:
+                result = get_desktop_agent().command(argument, emit=print)
+                if result:
+                    print(result)
+            except (OSError, RuntimeError, ValueError) as exc:
+                print(f'Desktop agent: {exc}')
+        elif lower in ['/takeover', 'takeover']:
+            cmd_takeover()
         elif lower.startswith('/autonomous ') or lower.startswith('autonomous ') or lower.startswith('/auto ') or lower.startswith('auto '):
             p = user_input.split(' ', 1)[1]
             cmd_autonomous(p)
@@ -712,6 +736,8 @@ def dashboard_command(command: str, argument: str, *, emit=None) -> str:
                 '/exit               Exit HariAI\n\n'
                 'Enter: send · Up/Down: input history · Esc: stop reply\n'
                 'F2: show/hide panels · Ctrl+L: new chat · Ctrl+Q: quit')
+    if command in ('/grand', '/dashboard', '/ui'):
+        return 'You are already in the full HariAI dashboard.'
     sink = emit or lines.append
     if command == '/agent':
         try:

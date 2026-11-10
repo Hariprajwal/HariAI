@@ -15,18 +15,12 @@ from textual.containers import Horizontal, Vertical, VerticalScroll
 from textual.message import Message
 from textual.widgets import Button, Footer, Input, Static
 
-from hari_ai.cli.art import find_mahakal_path, get_mahakal_text
+from hari_ai.cli.art import get_mahakal_braille, get_mahakal_text
+from hari_ai.cli.command_prompts import CommandPrompt, missing_input_prompt
 from hari_ai.cli.confidence import confidence_lines
 from hari_ai.profile.creator import get_creator_profile
 from hari_ai.runtime.session_status import SessionStatus
 from hari_ai.version import __version__
-
-try:
-    # Use half-cell rendering: Sixel/TGP output in a frequently refreshed
-    # Textual screen can leave stale rows in some terminals.
-    from textual_image.widget import HalfcellImage as TerminalImage
-except ImportError:  # Development checkouts may not have installed UI extras yet.
-    TerminalImage = None
 
 PURPLE = '#c17aff'
 DIM = '#93889f'
@@ -192,6 +186,7 @@ class HariDashboard(App):
         self._input_history: list[str] = []
         self._history_index = 0
         self._draft = ''
+        self.pending_command: CommandPrompt | None = None
 
     def compose(self) -> ComposeResult:
         with Horizontal(id='titlebar'):
@@ -209,20 +204,13 @@ class HariDashboard(App):
                 yield Input(placeholder='Send a message  ·  /help for commands', id='prompt')
             with VerticalScroll(id='sidebar'):
                 yield Panel('◈ HariAI Status', id='runtime-status')
-                with Vertical(id='mahakal', classes='panel') as mahakal_panel:
-                    mahakal_panel.border_title = '✦ Mahakaal'
-                    mahakal_path = find_mahakal_path()
-                    if mahakal_path and TerminalImage is not None:
-                        yield TerminalImage(str(mahakal_path), id='mahakal-image')
-                    elif mahakal_path:
-                        yield Static(get_mahakal_text(width=34, height_lines=16, bg_hex='#0c0912'),
-                                     id='mahakal-image', classes='mahakal-fallback')
-                    else:
-                        yield Static('Mahakaal artwork is missing from hari_ai/assets.',
-                                     id='mahakal-image', classes='mahakal-fallback')
                 yield Panel('✧ Capabilities', id='capabilities')
                 yield Panel('◉ Learning · Dream Engine', id='learning')
                 yield Panel('⌘ Cluster · Multi-HariAI', id='cluster')
+                with Vertical(id='mahakal', classes='panel') as mahakal_panel:
+                    mahakal_panel.border_title = '✦ Mahakaal'
+                    yield Static(get_mahakal_braille(width=34, height_lines=18), id='mahakal-image',
+                                 classes='mahakal-art', markup=False)
                 with Vertical(id='quick-commands', classes='panel'):
                     yield Static('Quick Commands', classes='panel-heading')
                     yield Button('/status     Live system details', id='quick-status')
@@ -392,34 +380,60 @@ class HariDashboard(App):
     async def submit_prompt(self, text: str) -> None:
         if self.busy:
             return
-        if text.lower() in ('/exit', '/quit', 'exit', 'quit', ':q'):
+        text = text.strip()
+        if self.pending_command:
+            if text.lower() in {'/cancel', 'cancel'}:
+                await self._add_turn('user', text)
+                self.pending_command = None
+                await self._add_turn('assistant', 'Cancelled. What would you like to do next?')
+                self.query_one('#prompt', Input).focus()
+                return
+            if not text.startswith('/'):
+                prompt = self.pending_command
+                self.pending_command = None
+                await self._start_request(f'{prompt.prefix} {text}', text)
+                return
+            self.pending_command = None
+
+        missing = missing_input_prompt(text)
+        if missing:
+            await self._add_turn('user', text)
+            self.pending_command = missing
+            await self._add_turn('assistant', f'{missing.question}\nType /cancel to stop this command.')
+            self.query_one('#prompt', Input).focus()
+            return
+
+        await self._start_request(text, text)
+
+    async def _start_request(self, request: str, displayed_text: str) -> None:
+        if request.lower() in ('/exit', '/quit', 'exit', 'quit', ':q'):
             self.action_quit_session()
             return
-        if text.lower() in ('/silent', '/plain', '/terminal', 'silent'):
+        if request.lower() in ('/silent', '/plain', '/terminal', 'silent'):
             self.switch_to_silent = True
             if self.is_running:
                 self.exit()
             return
-        if text.lower() in ('/clear', 'clear'):
+        if request.lower() in ('/clear', 'clear'):
             await self.action_clear_chat()
             return
         self.dream.notify_user_activity()
-        await self._add_turn('user', text)
+        await self._add_turn('user', displayed_text)
         self.active_reply = await self._add_turn('assistant')
         self.busy = True
         self.last_error = ''
         self.generated_chars = 0
         self.task_started = time.monotonic()
         self.stop_requested.clear()
-        self.activity = 'Working' if text.startswith('/') else 'Generating'
-        self.task_is_chat = not text.startswith('/') or text.partition(' ')[0].lower() in ('/ask', '/code', '/think')
-        self.active_command = text.partition(' ')[0].lower() if text.startswith('/') else ''
-        self.active_is_autonomous = text.lower().startswith(('/auto ', '/autonomous ', '/agent auto ', '/agent autonomous '))
-        self.active_is_tool_task = text.lower().startswith('/tools run ')
+        self.activity = 'Working' if request.startswith('/') else 'Generating'
+        self.task_is_chat = not request.startswith('/') or request.partition(' ')[0].lower() in ('/ask', '/code', '/think')
+        self.active_command = request.partition(' ')[0].lower() if request.startswith('/') else ''
+        self.active_is_autonomous = request.lower().startswith(('/auto ', '/autonomous ', '/agent auto ', '/agent autonomous '))
+        self.active_is_tool_task = request.lower().startswith('/tools run ')
         for button in self.query(Button):
             button.disabled = True
         self.refresh_panels()
-        self._run_request(text)
+        self._run_request(request)
 
     @work(thread=True, exclusive=True, group='conversation')
     def _run_request(self, text: str) -> None:

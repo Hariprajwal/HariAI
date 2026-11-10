@@ -29,6 +29,25 @@ class TestHariCLI(unittest.TestCase):
             self.assertEqual(plain.call_count, 2)
             dashboard.assert_not_called()
 
+    def test_grand_returns_from_silent_terminal_to_dashboard(self):
+        cli = importlib.import_module('hari_ai.cli.main')
+        with patch.object(cli, 'get_user_input', return_value='/grand'), \
+                patch.object(cli, 'print_banner'), patch.object(cli, 'cmd_status'), \
+                patch.object(cli._DREAM_CONTROLLER, 'start_auto_dreamer'), \
+                patch.object(cli._DREAM_CONTROLLER, 'notify_user_activity'):
+            self.assertEqual(cli.repl(), 'switch_to_dashboard')
+
+    def test_plain_repl_prompts_for_convert_source_then_runs_it(self):
+        cli = importlib.import_module('hari_ai.cli.main')
+        with patch.object(cli, 'get_user_input', side_effect=['/convert', r'C:\\Docs\\notes.txt', '/exit']), \
+                patch.object(cli, 'print_banner'), patch.object(cli, 'cmd_status'), \
+                patch.object(cli._DREAM_CONTROLLER, 'start_auto_dreamer'), \
+                patch.object(cli._DREAM_CONTROLLER, 'notify_user_activity'), \
+                patch.object(cli, 'cmd_convert') as convert:
+            with self.assertRaises(SystemExit):
+                cli.repl()
+        convert.assert_called_once_with([r'C:\\Docs\\notes.txt'])
+
     def test_dashboard_settings_preserve_quoted_windows_path(self):
         cli = importlib.import_module('hari_ai.cli.main')
         with patch.object(cli, 'cmd_settings') as settings:

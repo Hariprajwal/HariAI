@@ -50,6 +50,18 @@ class TestAutonomousDesktopController(unittest.TestCase):
                 controller.command('auto inspect this')
         driver.capture.assert_not_called()
 
+    def test_host_can_be_configured_before_the_model(self):
+        vision_factory = Mock()
+        with tempfile.TemporaryDirectory() as temporary:
+            controller = DesktopAgentController(config_path=Path(temporary) / 'agent.json',
+                                                driver=Mock(), vision_factory=vision_factory,
+                                                overlay_factory=Mock())
+            result = controller.command('host http://127.0.0.1:11435')
+            self.assertIn('http://127.0.0.1:11435', result)
+            self.assertEqual(controller.model, '')
+            self.assertEqual(controller.host, 'http://127.0.0.1:11435')
+            self.assertIn('Select a vision model', controller.status_text())
+
 
 if __name__ == '__main__':
     unittest.main()

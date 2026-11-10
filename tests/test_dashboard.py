@@ -10,10 +10,9 @@ from pathlib import Path
 from unittest.mock import patch
 
 from rich.text import Text
-from textual.widgets import Button, Input
+from textual.widgets import Button, Input, Static
 
-from hari_ai.cli.dashboard import DIM, TerminalImage, ChatTurn, CreatorCard, HariDashboard
-from hari_ai.cli.art import find_mahakal_path
+from hari_ai.cli.dashboard import DIM, ChatTurn, CreatorCard, HariDashboard
 from hari_ai.dream.controller import DreamEngineController
 from hari_ai.memory.hierarchy import HierarchicalMemoryManager
 from hari_ai.runtime.chat import ChatEngine
@@ -104,14 +103,12 @@ class TestHariDashboard(unittest.IsolatedAsyncioTestCase):
             self.assertTrue(self.app.query_one('#main-pane').display)
             self.assertEqual(len(self.app.query('#sidebar .panel')), 6)
             image = self.app.query_one('#mahakal-image')
-            art_panel = self.app.query_one('#mahakal')
-            self.assertLess(art_panel.region.y + art_panel.region.height, self.app.size.height)
-            if TerminalImage is not None:
-                self.assertIsInstance(image, TerminalImage)
-                self.assertEqual(Path(image.image), find_mahakal_path())
-                self.assertEqual(image.region.height, 18)
-                self.assertLess(image.region.width, self.app.query_one('#mahakal').region.width)
-                self.assertEqual(TerminalImage.__name__, 'HalfcellImage')
+            self.assertIsInstance(image, Static)
+            self.assertEqual(image.region.height, 18)
+            self.assertEqual([panel.id for panel in self.app.query('#sidebar .panel')], [
+                'runtime-status', 'capabilities', 'learning', 'cluster', 'mahakal', 'quick-commands',
+            ])
+            self.assertEqual(image.content.plain.count('\n'), 17)
             rendered = self.app.export_screenshot()
             self.assertEqual(rendered.count('Capabilities'), 1)
             self.assertEqual(rendered.count('Ready'), 1)
@@ -156,6 +153,23 @@ class TestHariDashboard(unittest.IsolatedAsyncioTestCase):
                 self.assertTrue(all(not button.disabled for button in self.app.query(Button)))
             finally:
                 self.local.release.set()
+
+    async def test_missing_command_argument_starts_a_follow_up_prompt(self):
+        async with self.app.run_test(size=(160, 54)) as pilot:
+            await self.app.submit_prompt('/convert')
+            self.assertFalse(self.app.busy)
+            self.assertIsNotNone(self.app.pending_command)
+            self.assertEqual(self.app.pending_command.prefix, '/convert')
+            self.assertIn('source file path', self.replies()[-1].content)
+
+            await self.app.submit_prompt(r'C:\Documents\report.docx')
+            await self.wait_for(pilot, lambda: not self.app.busy)
+            self.assertEqual(self.commands[-1], ('/convert', r'C:\Documents\report.docx'))
+
+            await self.app.submit_prompt('/search')
+            await self.app.submit_prompt('/cancel')
+            self.assertIsNone(self.app.pending_command)
+            self.assertIn('Cancelled', self.replies()[-1].content)
 
     async def test_escape_stops_partial_reply_rolls_back_and_can_chat_again(self):
         self.local.release.clear()

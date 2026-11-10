@@ -52,7 +52,7 @@ Screen {
 }
 #mahakal { height: 21; min-height: 21; align: center middle; }
 #mahakal-image { width: auto; height: 18; }
-.mahakal-fallback { text-align: center; content-align: center middle; }
+.mahakal-art { text-align: center; content-align: center middle; }
 .panel-heading { display: none; }
 #quick-commands Button {
     width: 100%;

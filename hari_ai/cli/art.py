@@ -158,8 +158,10 @@ def get_mahakal_ascii(width: int = 14, height: int = 5) -> Text:
 def get_mahakal_braille(width: int = 16, height_lines: int = 6) -> Text:
     """Renders Mahakaal using high-density 2x4 sub-pixel Unicode Braille art.
 
-    Braille provides 4x the pixel resolution of half-blocks (32x24 sub-pixels in 16x6 cells),
-    yielding razor-sharp curved outlines for the crescent moon, trishul, and third eye.
+    Braille provides four times the pixel resolution of half-block cells while
+    keeping the artwork inside a compact terminal panel. Each character is
+    coloured from the source image, so the moon, trishul, and silhouette retain
+    their purple highlights without enlarging into blurry blocks.
     """
     pixel_w = width * 2
     pixel_h = height_lines * 4
@@ -169,14 +171,16 @@ def get_mahakal_braille(width: int = 16, height_lines: int = 6) -> Text:
         if not path:
             return _fallback_text(width, height_lines)
 
-        img = Image.open(path).convert("L")
+        img = Image.open(path).convert("RGB")
         w_img, h_img = img.size
-        # Focus on upper silhouette (moon, third eye, trishul head)
-        img = img.crop((int(w_img * 0.05), int(h_img * 0.02), int(w_img * 0.95), int(h_img * 0.70)))
-        enh = ImageEnhance.Contrast(img).enhance(2.8)
-        img_resized = ImageOps.contain(enh, (pixel_w, pixel_h), method=Image.Resampling.LANCZOS)
+        # Keep the complete portrait while removing only the empty outer edge.
+        img = img.crop((int(w_img * 0.03), 0, int(w_img * 0.97), int(h_img * 0.98)))
+        enhanced = ImageEnhance.Contrast(img).enhance(3.0)
+        enhanced = ImageEnhance.Sharpness(enhanced).enhance(2.4)
+        enhanced = ImageEnhance.Brightness(enhanced).enhance(1.25)
+        img_resized = ImageOps.contain(enhanced, (pixel_w, pixel_h), method=Image.Resampling.LANCZOS)
 
-        canvas = Image.new("L", (pixel_w, pixel_h), 0)
+        canvas = Image.new("RGB", (pixel_w, pixel_h), (0, 0, 0))
         x = max(0, (pixel_w - img_resized.width) // 2)
         y = max(0, (pixel_h - img_resized.height) // 2)
         canvas.paste(img_resized, (x, y))
@@ -188,17 +192,28 @@ def get_mahakal_braille(width: int = 16, height_lines: int = 6) -> Text:
             (1, 0, 8), (1, 1, 16), (1, 2, 32),
             (0, 3, 64), (1, 3, 128)
         ]
-        threshold = 55
+        threshold = 85
         for r in range(0, pixel_h, 4):
             for c in range(0, pixel_w, 2):
                 code = 0
+                active_colours = []
                 for dx, dy, bit in dot_offsets:
                     px = c + dx
                     py = min(pixel_h - 1, r + dy)
-                    if canvas.getpixel((px, py)) > threshold:
+                    red, green, blue = canvas.getpixel((px, py))
+                    brightness = red * 0.2126 + green * 0.7152 + blue * 0.0722
+                    if brightness > threshold:
                         code |= bit
+                        active_colours.append((red, green, blue))
                 braille_char = chr(0x2800 + code) if code else " "
-                out.append(braille_char, style=Style(color="#c17aff"))
+                if active_colours:
+                    count = len(active_colours)
+                    red = min(255, int(sum(colour[0] for colour in active_colours) / count * 1.15))
+                    green = min(255, int(sum(colour[1] for colour in active_colours) / count * 1.10))
+                    blue = min(255, int(sum(colour[2] for colour in active_colours) / count * 1.15))
+                    out.append(braille_char, style=Style(color=f"#{red:02x}{green:02x}{blue:02x}"))
+                else:
+                    out.append(braille_char)
             if r < pixel_h - 4:
                 out.append("\n")
         return out
