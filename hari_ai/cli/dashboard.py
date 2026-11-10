@@ -209,9 +209,6 @@ class HariDashboard(App):
                 yield Input(placeholder='Send a message  ·  /help for commands', id='prompt')
             with VerticalScroll(id='sidebar'):
                 yield Panel('◈ HariAI Status', id='runtime-status')
-                yield Panel('✧ Capabilities', id='capabilities')
-                yield Panel('◉ Learning · Dream Engine', id='learning')
-                yield Panel('⌘ Cluster · Multi-HariAI', id='cluster')
                 with Vertical(id='mahakal', classes='panel') as mahakal_panel:
                     mahakal_panel.border_title = '✦ Mahakaal'
                     mahakal_path = find_mahakal_path()
@@ -223,6 +220,9 @@ class HariDashboard(App):
                     else:
                         yield Static('Mahakaal artwork is missing from hari_ai/assets.',
                                      id='mahakal-image', classes='mahakal-fallback')
+                yield Panel('✧ Capabilities', id='capabilities')
+                yield Panel('◉ Learning · Dream Engine', id='learning')
+                yield Panel('⌘ Cluster · Multi-HariAI', id='cluster')
                 with Vertical(id='quick-commands', classes='panel'):
                     yield Static('Quick Commands', classes='panel-heading')
                     yield Button('/status     Live system details', id='quick-status')

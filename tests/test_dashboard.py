@@ -104,6 +104,8 @@ class TestHariDashboard(unittest.IsolatedAsyncioTestCase):
             self.assertTrue(self.app.query_one('#main-pane').display)
             self.assertEqual(len(self.app.query('#sidebar .panel')), 6)
             image = self.app.query_one('#mahakal-image')
+            art_panel = self.app.query_one('#mahakal')
+            self.assertLess(art_panel.region.y + art_panel.region.height, self.app.size.height)
             if TerminalImage is not None:
                 self.assertIsInstance(image, TerminalImage)
                 self.assertEqual(Path(image.image), find_mahakal_path())
