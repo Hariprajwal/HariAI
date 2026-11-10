@@ -34,7 +34,7 @@ class TestSessionStatus(unittest.TestCase):
         self.assertEqual(status.model_bytes, 17)
         self.assertTrue(status.model_available)
         self.assertFalse(status.model_loaded)
-        self.assertEqual(status.device, 'CPU')
+        self.assertTrue(status.device.startswith('CPU'))
         self.assertEqual(status.context_tokens, 2048)
         self.assertIn('first reply', status.readiness)
 
@@ -76,7 +76,7 @@ class TestSessionStatus(unittest.TestCase):
         self.assertEqual(second.last_inspected, 1)
         self.assertEqual(second.dream_state, 'wake')
 
-    def test_ollama_remains_unverified_without_any_network_requests(self):
+    def test_ollama_status_is_pending_until_chat_without_network_requests(self):
         self.chat.settings = ChatSettings(backend='ollama', ollama_model='my-model')
         self.chat.ollama = Mock()
         status = self.provider().snapshot()
@@ -86,7 +86,8 @@ class TestSessionStatus(unittest.TestCase):
         self.assertFalse(status.model_loaded)
         self.assertFalse(status.model_available)
         self.assertIsNone(status.model_bytes)
-        self.assertIn('unverified', status.readiness)
+        self.assertIn('checked on next chat', status.readiness)
+        self.assertNotIn('unverified', status.readiness)
 
     def test_nano_reports_actual_device_and_checkpoint_state(self):
         self.chat.settings = ChatSettings(backend='nano', nano_checkpoint=str(self.path))

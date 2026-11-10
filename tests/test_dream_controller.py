@@ -1,6 +1,7 @@
 """Unit tests for the HariAI Dream Engine Controller: Consolidation, Generative Replay & Auto-Dream."""
 
 import unittest
+import time
 from hari_ai.dream.controller import (
     DreamEngineController,
     SleepTrigger,
@@ -39,10 +40,18 @@ class TestDreamEngineController(unittest.TestCase):
         self.assertEqual(trigger, SleepTrigger.MEMORY_THRESHOLD)
 
     def test_sleep_triggers_on_idle_timeout(self):
+        self.mem.episodic.record(EpisodicEntry(
+            entry_id='idle-ready', timestamp=time.time(),
+            user_input='Remember this preference', assistant_output='Stored in session memory.',
+        ))
         # Simulated time 20 seconds later
         now = self.controller.last_user_activity + 20.0
         trigger = self.controller.should_enter_sleep(current_time=now)
         self.assertEqual(trigger, SleepTrigger.IDLE_TIMEOUT)
+
+    def test_idle_with_no_new_experiences_does_not_run_empty_cycles(self):
+        now = self.controller.last_user_activity + 20.0
+        self.assertIsNone(self.controller.should_enter_sleep(current_time=now))
 
     def test_run_sleep_cycle_generative_replay_and_consolidation(self):
         # Add experience with a failure
@@ -73,10 +82,12 @@ class TestDreamEngineController(unittest.TestCase):
         self.assertGreater(result.synthetic_exercises_generated, 0)
         self.assertGreaterEqual(result.facts_consolidated, 1)
         self.assertGreaterEqual(result.recipes_extracted, 1)
-        # Default invariant regression suite passed
+        # This default cycle evaluates invariants but does not train or promote weights.
         self.assertTrue(result.regression_tests_passed)
-        self.assertTrue(result.promoted)
-        self.assertIsNotNone(result.candidate_checkpoint_id)
+        self.assertFalse(result.promoted)
+        self.assertIsNone(result.candidate_checkpoint_id)
+        self.assertEqual(result.details['weight_update'],
+                         'none; this Dream cycle consolidates memory and evaluates invariants only')
         self.assertEqual(self.controller.current_state, SystemState.WAKE)
 
         # Verify second cycle skips already consolidated entries

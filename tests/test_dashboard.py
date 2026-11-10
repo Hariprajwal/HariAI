@@ -12,7 +12,8 @@ from unittest.mock import patch
 from rich.text import Text
 from textual.widgets import Button, Input
 
-from hari_ai.cli.dashboard import DIM, ChatTurn, CreatorCard, HariDashboard
+from hari_ai.cli.dashboard import DIM, TerminalImage, ChatTurn, CreatorCard, HariDashboard
+from hari_ai.cli.art import find_mahakal_path
 from hari_ai.dream.controller import DreamEngineController
 from hari_ai.memory.hierarchy import HierarchicalMemoryManager
 from hari_ai.runtime.chat import ChatEngine
@@ -55,11 +56,6 @@ class ControlledLocalModel:
 
 
 class TestHariDashboard(unittest.IsolatedAsyncioTestCase):
-    async def asyncSetUp(self):
-        # The Windows Textual event pump creates many short tasks; debug-mode
-        # stack capture swamps these UI tests without improving the assertions.
-        asyncio.get_running_loop().set_debug(False)
-
     def setUp(self):
         self.directory = tempfile.TemporaryDirectory()
         self.addCleanup(self.directory.cleanup)
@@ -106,7 +102,17 @@ class TestHariDashboard(unittest.IsolatedAsyncioTestCase):
         async with self.app.run_test(size=(160, 54)) as pilot:
             self.assertTrue(self.app.query_one('#sidebar').display)
             self.assertTrue(self.app.query_one('#main-pane').display)
-            self.assertEqual(len(self.app.query('#sidebar .panel')), 5)
+            self.assertEqual(len(self.app.query('#sidebar .panel')), 6)
+            image = self.app.query_one('#mahakal-image')
+            if TerminalImage is not None:
+                self.assertIsInstance(image, TerminalImage)
+                self.assertEqual(Path(image.image), find_mahakal_path())
+                self.assertEqual(image.region.height, 18)
+                self.assertLess(image.region.width, self.app.query_one('#mahakal').region.width)
+                self.assertEqual(TerminalImage.__name__, 'HalfcellImage')
+            rendered = self.app.export_screenshot()
+            self.assertEqual(rendered.count('Capabilities'), 1)
+            self.assertEqual(rendered.count('Ready'), 1)
             self.assertIs(self.app.focused, self.app.query_one('#prompt'))
             await pilot.resize_terminal(80, 24)
             await pilot.pause()
@@ -212,8 +218,10 @@ class TestHariDashboard(unittest.IsolatedAsyncioTestCase):
                 self.local.release.set()
 
     async def test_quick_profile_and_commands_use_current_engine(self):
-        async with self.app.run_test(size=(160, 54)) as pilot:
+        async with self.app.run_test(size=(160, 70)) as pilot:
             button = self.app.query_one('#quick-info', Button)
+            self.app.query_one('#sidebar').scroll_end(animate=False)
+            await pilot.pause()
             button.scroll_visible(animate=False)
             await pilot.pause()
             await pilot.click('#quick-info')
@@ -268,14 +276,18 @@ class TestHariDashboard(unittest.IsolatedAsyncioTestCase):
                                           ('/dream status', 'Dream Engine State'),
                                           ('/info', 'K R Hari Prajwal')]:
                     await self.app.submit_prompt(command)
-                    await self.wait_for(pilot, lambda: not self.app.busy)
+                    try:
+                        await self.wait_for(pilot, lambda: not self.app.busy)
+                    except asyncio.TimeoutError:
+                        self.fail(f'{command} hung; active={self.app.active_command!r}, '
+                                  f'error={self.app.last_error!r}, '
+                                  f'reply={self.replies()[-1].content[:160]!r}')
                     self.assertIn(expected, self.replies()[-1].content)
                     self.assertEqual(self.app.last_error, '')
                 self.assertEqual(self.local.calls, [])
                 self.assertEqual(len(self.chat.history), 1)
 
     async def test_silent_command_switches_mode(self):
-        self.app.is_running = False
         await self.app.submit_prompt('/silent')
         self.assertTrue(self.app.switch_to_silent)
 

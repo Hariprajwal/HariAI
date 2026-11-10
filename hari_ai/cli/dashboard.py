@@ -15,11 +15,18 @@ from textual.containers import Horizontal, Vertical, VerticalScroll
 from textual.message import Message
 from textual.widgets import Button, Footer, Input, Static
 
-from hari_ai.cli.art import get_mahakal_text, get_mahakal_braille, get_mahakal_trinetra, get_mahakal_trishul
+from hari_ai.cli.art import find_mahakal_path, get_mahakal_text
 from hari_ai.cli.confidence import confidence_lines
 from hari_ai.profile.creator import get_creator_profile
 from hari_ai.runtime.session_status import SessionStatus
 from hari_ai.version import __version__
+
+try:
+    # Use half-cell rendering: Sixel/TGP output in a frequently refreshed
+    # Textual screen can leave stale rows in some terminals.
+    from textual_image.widget import HalfcellImage as TerminalImage
+except ImportError:  # Development checkouts may not have installed UI extras yet.
+    TerminalImage = None
 
 PURPLE = '#c17aff'
 DIM = '#93889f'
@@ -170,6 +177,9 @@ class HariDashboard(App):
         self.status = SessionStatus(engine_getter, dream_controller)
         self.busy = False
         self.task_is_chat = False
+        self.active_command = ''
+        self.active_is_autonomous = False
+        self.active_is_tool_task = False
         self.activity = 'Ready'
         self.task_started = 0.0
         self.last_elapsed = 0.0
@@ -202,7 +212,17 @@ class HariDashboard(App):
                 yield Panel('✧ Capabilities', id='capabilities')
                 yield Panel('◉ Learning · Dream Engine', id='learning')
                 yield Panel('⌘ Cluster · Multi-HariAI', id='cluster')
-                yield Panel('✦ Mahakaal', id='mahakal')
+                with Vertical(id='mahakal', classes='panel') as mahakal_panel:
+                    mahakal_panel.border_title = '✦ Mahakaal'
+                    mahakal_path = find_mahakal_path()
+                    if mahakal_path and TerminalImage is not None:
+                        yield TerminalImage(str(mahakal_path), id='mahakal-image')
+                    elif mahakal_path:
+                        yield Static(get_mahakal_text(width=34, height_lines=16, bg_hex='#0c0912'),
+                                     id='mahakal-image', classes='mahakal-fallback')
+                    else:
+                        yield Static('Mahakaal artwork is missing from hari_ai/assets.',
+                                     id='mahakal-image', classes='mahakal-fallback')
                 with Vertical(id='quick-commands', classes='panel'):
                     yield Static('Quick Commands', classes='panel-heading')
                     yield Button('/status     Live system details', id='quick-status')
@@ -262,6 +282,7 @@ class HariDashboard(App):
         ram = f'{state.process_mb:.0f} MB' if state.process_mb is not None else 'unavailable'
         free = f'{state.available_ram_gb:.1f} GB' if state.available_ram_gb is not None else 'unavailable'
         cpu = f'{state.cpu_percent:.0f}%' if state.cpu_percent is not None else '—'
+        auto_dream = getattr(self.dream, 'auto_dream_active', False)
         runtime = self.query_one('#runtime-status', Panel)
         runtime.border_subtitle = f'● {readiness}'
         runtime.styles.border_subtitle_color = AMBER if self.last_error or not state.model_available else GREEN
@@ -273,27 +294,37 @@ class HariDashboard(App):
                              ('Runtime', f'{state.device}' + (f' · {state.threads} threads' if state.threads else '')),
                              ('Context', f'{state.context_tokens:,} tokens' if state.context_tokens else 'Backend managed'),
                              ('Memory', f'{state.turns} turns · {state.episodic_entries} session experiences'),
-                             ('Learning', 'Automated continual training · Generative replay active'),
+                             ('Learning', 'Automatic idle memory consolidation' if auto_dream else 'Consolidation is off'),
                              ('Cluster', 'Single session · no workers started')))
+        desktop_ready = False
+        if self.agent_getter:
+            try:
+                desktop_agent = self.agent_getter()
+                desktop_ready = bool(desktop_agent.model and desktop_agent.region)
+            except (OSError, RuntimeError, ValueError):
+                pass
         capabilities = Text()
         for label, enabled in [('Conversation & explanations', state.model_available),
-                               ('Code generation (unverified)', state.model_available),
+                               ('Code generation', state.model_available),
                                ('Explicit local memory', True), ('Web search via /search', True),
-                               ('Automatic training', True), ('Autonomous tool execution', True)]:
+                               ('Automatic memory consolidation', auto_dream),
+                               ('Autonomous desktop control', desktop_ready)]:
             capabilities.append('✓ ' if enabled else '○ ', GREEN if enabled else DIM)
             capabilities.append(label + '\n', '' if enabled else DIM)
         capabilities.append(f'Context: {state.turns} turns · {state.working_items} memory items\n', DIM)
         capabilities.append(f'App RAM: {ram} · Free: {free}\nSystem CPU: {cpu}', DIM)
         self.query_one('#capabilities', Panel).update(capabilities)
-        auto_dream = getattr(self.dream, 'auto_dream_active', True)
-        learning_state = 'Consolidating' if state.dream_state == 'sleep' else ('Active · auto training' if auto_dream else 'Idle · manual')
+        dream_error = getattr(self.dream, 'auto_dream_error', None)
+        learning_state = ('Consolidating' if state.dream_state == 'sleep' else
+                          'Retrying after an error' if dream_error and auto_dream else
+                          'Watching for idle memory' if auto_dream else 'Auto consolidation off')
         rehearsal_count = len(getattr(self.dream, 'synthetic_rehearsal_buffer', []))
         self.query_one('#learning', Panel).update(rows(
             ('State', learning_state),
             ('Cycles', state.dream_cycles), ('Experiences', state.episodic_entries),
             ('Facts', f'{state.semantic_facts} · Recipes: {state.recipes}'),
             ('Rehearsal', f'{rehearsal_count} exercises'),
-            ('Weights', 'Continual LoRA gate')))
+            ('Weights', 'Not updated by Dream')))
         swarm_status = self.swarm.get_status() if self.swarm else {
             'session': 'This terminal', 'workers': '0 · not started',
             'activity': self.activity if self.busy else 'Idle', 'mode': 'Standalone chat'
@@ -303,8 +334,6 @@ class HariDashboard(App):
             ('Activity', swarm_status['activity']), ('Mode', swarm_status['mode']),
             ('Swarm', 'Consensus Active'))
         self.query_one('#cluster', Panel).update(cluster_rows)
-        mahakal_widget = get_mahakal_trinetra()
-        self.query_one('#mahakal', Panel).update(mahakal_widget)
         if self.busy:
             suffix = 'Esc to stop' if self.task_is_chat else 'Command in progress'
             activity = f'{self.activity} · {elapsed:.1f}s · {self.generated_chars} characters · {suffix}'
@@ -384,6 +413,9 @@ class HariDashboard(App):
         self.stop_requested.clear()
         self.activity = 'Working' if text.startswith('/') else 'Generating'
         self.task_is_chat = not text.startswith('/') or text.partition(' ')[0].lower() in ('/ask', '/code', '/think')
+        self.active_command = text.partition(' ')[0].lower() if text.startswith('/') else ''
+        self.active_is_autonomous = text.lower().startswith(('/auto ', '/autonomous ', '/agent auto ', '/agent autonomous '))
+        self.active_is_tool_task = text.lower().startswith('/tools run ')
         for button in self.query(Button):
             button.disabled = True
         self.refresh_panels()
@@ -400,8 +432,13 @@ class HariDashboard(App):
             chat_commands = {'/ask': '', '/code': 'Write code for the following request. State any assumptions: ',
                              '/think': 'Please reason carefully about: '}
             if text.startswith('/') and command not in chat_commands:
-                result = self.command_handler(command, argument)
-                self.post_message(ReplyPiece(result))
+                if command in ('/auto', '/autonomous', '/agent', '/tools'):
+                    progress = lambda piece: self.post_message(ReplyPiece(piece))
+                    result = self.command_handler(command, argument, emit=progress)
+                else:
+                    result = self.command_handler(command, argument)
+                if result:
+                    self.post_message(ReplyPiece(result))
                 creator = command in ('/info', '/mahakal', '/shiva')
             else:
                 if command in chat_commands and not argument.strip():
@@ -460,6 +497,9 @@ class HariDashboard(App):
         if follow:
             viewport.scroll_end(animate=False)
         self.active_reply = None
+        self.active_command = ''
+        self.active_is_autonomous = False
+        self.active_is_tool_task = False
         for button in self.query(Button):
             button.disabled = False
         self.refresh_panels()
@@ -486,6 +526,17 @@ class HariDashboard(App):
     def action_stop(self) -> None:
         if self.busy:
             if not self.task_is_chat:
+                if self.active_is_autonomous and self.agent_getter:
+                    self.agent_getter().stop()
+                    self.activity = 'Stopping autonomous control'
+                    self.refresh_panels()
+                    return
+                if self.active_is_tool_task:
+                    from hari_ai.cli.main import _TOOL_STOP_EVENT
+                    _TOOL_STOP_EVENT.set()
+                    self.activity = 'Stopping tool task'
+                    self.refresh_panels()
+                    return
                 self.notify('This command is running; its result will appear when it finishes.')
                 return
             self.stop_requested.set()

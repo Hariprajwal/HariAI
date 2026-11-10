@@ -11,7 +11,8 @@ import threading
 import time
 from typing import Callable
 
-from hari_ai.agent.desktop import DesktopDriver, Region, parse_decision
+from hari_ai.agent.desktop import DesktopCancelled, DesktopDriver, Region, parse_decision
+from hari_ai.agent.overlay import TakeoverOverlay
 from hari_ai.agent.vision import OllamaVisionClient
 from hari_ai.runtime.settings import settings_path
 
@@ -32,10 +33,11 @@ class DesktopAgentController:
     """Task state is session-only. Screenshots never enter chat memory or logs."""
 
     def __init__(self, *, config_path: Path | None = None, driver=None, vision_factory=None,
-                 max_steps: int = 8, max_observation_age: float = 90):
+                 max_steps: int = 8, max_observation_age: float = 90, overlay_factory=None):
         self.config_path = config_path or settings_path().with_name('desktop-agent.json')
         self.driver = driver or DesktopDriver()
         self.vision_factory = vision_factory or OllamaVisionClient
+        self.overlay_factory = overlay_factory or TakeoverOverlay
         self.max_steps = max_steps
         self.max_observation_age = max_observation_age
         self.model = ''
@@ -50,6 +52,8 @@ class DesktopAgentController:
         self.observation = None
         self.history: list[dict] = []
         self.stop_event = threading.Event()
+        self.pause_event = threading.Event()
+        self.overlay = None
         self._lock = threading.Lock()
         self.config_error = ''
         try:
@@ -193,6 +197,80 @@ class DesktopAgentController:
         self._check_stop()
         return self._plan(emit)
 
+    def run_autonomous(self, goal: str, emit: Callable[[str], None]) -> str:
+        """Run a bounded task using the selected local vision model and live takeover controls."""
+        if not self.model:
+            raise ValueError('Select a local vision model first: /agent model llama3.2-vision:latest')
+        if self.region is None:
+            raise ValueError('Select the target first with /agent select or /agent region LEFT TOP WIDTH HEIGHT.')
+        if not goal.strip() or len(goal) > 4000:
+            raise ValueError('Describe the desktop task in 1–4000 characters.')
+
+        self.stop_event.clear()
+        self.pause_event.clear()
+        self._discard_plan()
+        self.goal = goal.strip()
+        self.steps = 0
+        self.last_action = ''
+        self.history = []
+        self.state = 'Starting autonomous task'
+        self.overlay = self.overlay_factory(self.stop_event, self.pause_event)
+        self.overlay.start()
+        emit('HariAI autonomous desktop control is active.\n')
+        emit(f'Goal: {self.goal}\nRegion: {self.region_label()}\n')
+        emit('Use Pause in the floating control or press Esc to stop; Take over returns control immediately.\n')
+
+        try:
+            client = self.vision_factory(host=self.host, model=self.model)
+            # Verify local vision capability before capturing any pixels.
+            client.capabilities()
+            while self.steps < self.max_steps:
+                while self.pause_event.is_set() and not self.stop_event.wait(0.1):
+                    self.state = 'Paused'
+                self._check_stop()
+                self.state = 'Observing'
+                emit(f'\nStep {self.steps + 1}/{self.max_steps}: observing the selected region…\n')
+                observation = self.driver.capture(self.region)
+                self.state = 'Planning'
+                raw = client.decide(self.goal, observation.png, self.history, stop_event=self.stop_event)
+                self._check_stop()
+                decision = parse_decision(raw)
+                emit(decision.summary + '\n')
+                if decision.done:
+                    self.state = 'Model reports complete'
+                    self._discard_plan()
+                    return (f'Model reports the task is complete: {decision.summary}\n'
+                            'Review the target application to confirm the result.')
+
+                action = decision.action
+                self.state = f'Executing {action.kind}'
+                emit(f'Executing {action.kind}…\n')
+                result = self.driver.execute(action, self.region, stop_event=self.stop_event)
+                self.steps += 1
+                self.last_action = action.kind
+                self.history.append({'summary': decision.summary,
+                                     'action': {'kind': action.kind}, 'result': result})
+                emit(result + '\n')
+
+            self.state = 'Step limit reached'
+            return (f'Autonomous run paused at its {self.max_steps}-action limit. '
+                    'Review the target, then start another task if needed.')
+        except (DesktopCancelled, RuntimeError):
+            if self.stop_event.is_set():
+                self.state = 'Stopped'
+                self._discard_plan()
+                return 'Autonomous task stopped. Control is back with you.'
+            self.state = 'Needs attention'
+            raise
+        except Exception:
+            self.state = 'Needs attention'
+            self._discard_plan()
+            raise
+        finally:
+            if self.overlay:
+                self.overlay.close()
+                self.overlay = None
+
     def command(self, argument: str, emit: Callable[[str], None] = lambda _: None) -> str:
         command, _, rest = argument.strip().partition(' ')
         command = command.lower() or 'status'
@@ -208,6 +286,7 @@ class DesktopAgentController:
                     '/agent region LEFT TOP WIDTH HEIGHT  Set a region in screen pixels\n'
                     '/agent run TASK                Observe and propose the next action\n'
                     '/agent approve ID              Execute the displayed action once\n'
+                    '/agent auto TASK               Execute a bounded task with Pause/Take over controls\n'
                     '/agent refresh                 Re-observe and propose a fresh action\n'
                     '/agent stop                    Stop and discard pending actions\n'
                     '/agent status                  See task state\n\n'
@@ -240,6 +319,8 @@ class DesktopAgentController:
                 return self.set_region(region)
             if command == 'run':
                 return self.run(rest, emit)
+            if command in ('auto', 'autonomous'):
+                return self.run_autonomous(rest, emit)
             if command == 'approve':
                 return self.approve(rest.strip(), emit)
             if command == 'refresh':

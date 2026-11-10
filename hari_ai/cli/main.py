@@ -15,6 +15,7 @@ import os
 import sys
 import time
 import shlex
+import threading
 from dataclasses import asdict
 from pathlib import Path
 from typing import Any, List, Optional
@@ -55,6 +56,7 @@ _SEARCH_ENGINE = SearchEngine(memory_manager=_MEMORY_MANAGER)
 _CHAT_ENGINE = ChatEngine(memory_manager=_MEMORY_MANAGER)
 _DESKTOP_AGENT = None
 _TOOL_AGENT = None
+_TOOL_STOP_EVENT = threading.Event()
 _SWARM_ENGINE = MultiHariSwarm(llm_engine=_CHAT_ENGINE)
 
 
@@ -368,21 +370,24 @@ def cmd_dream(args: List[str], *, emit=print) -> None:
         if result.promoted:
             emit(f"Candidate adapter promoted: {result.candidate_checkpoint_id}")
         emit("\nDream cycle completed.")
-        emit("Memory consolidation & generative rehearsal synchronized.\n")
+        emit("Memory consolidation & generative rehearsal synchronized. Model weights were not changed.\n")
     elif sub == "auto":
         if len(args) > 1 and args[1] in ("on", "enable", "start"):
             _DREAM_CONTROLLER.start_auto_dreamer()
-            emit("Automatic Dream Engine enabled (background sleep cycle active).")
+            emit("Automatic idle memory consolidation enabled (no model weight training).")
         elif len(args) > 1 and args[1] in ("off", "disable", "stop"):
             _DREAM_CONTROLLER.stop_auto_dreamer()
-            emit("Automatic Dream Engine disabled (manual /dream now only).")
+            emit("Automatic idle consolidation disabled; `/dream now` remains available.")
         else:
-            state = "ENABLED (active background worker)" if _DREAM_CONTROLLER.auto_dream_active else "DISABLED (manual only)"
+            state = "ENABLED (watching for idle experiences)" if _DREAM_CONTROLLER.auto_dream_active else "DISABLED"
             emit(f"Auto-Dreamer status: {state}")
+            if _DREAM_CONTROLLER.auto_dream_error:
+                emit(f"Last background error: {_DREAM_CONTROLLER.auto_dream_error}")
             emit("Use `hari dream auto on` or `hari dream auto off` to toggle.")
     elif sub == "status":
         emit(f"Dream Engine State: {_DREAM_CONTROLLER.current_state.value.upper()}")
         emit(f"Auto-Dreamer: {'ENABLED' if _DREAM_CONTROLLER.auto_dream_active else 'DISABLED'}")
+        emit("Learning mode: local memory consolidation; no model weight updates")
         emit(f"Total Sleep Cycles: {len(_DREAM_CONTROLLER.sleep_cycle_history)}")
         emit(f"Synthetic Rehearsal Buffer: {len(_DREAM_CONTROLLER.synthetic_rehearsal_buffer)} practice exercises")
         emit(f"Consolidated Facts: {len(_MEMORY_MANAGER.semantic.facts)}")
@@ -466,14 +471,38 @@ def cmd_convert(args: List[str], *, emit=print) -> None:
         emit(f"Conversion error: {exc}")
 
 
-def cmd_tools(*, emit=print) -> None:
+def get_tool_agent():
+    global _TOOL_AGENT
+    if _TOOL_AGENT is None:
+        from hari_ai.tools.agent import LocalToolAgent
+        from hari_ai.tools.registry import default_registry
+        _TOOL_AGENT = LocalToolAgent(_CHAT_ENGINE, default_registry)
+    return _TOOL_AGENT
+
+
+def cmd_tools(args: Optional[List[str]] = None, *, emit=print) -> None:
     """List available autonomous and MCP tools."""
     from hari_ai.tools.registry import default_registry
+    args = args or []
+    if args and args[0].lower() == 'run':
+        task = ' '.join(args[1:]).strip()
+        if not task:
+            emit('Usage: /tools run <task>')
+            return
+        _TOOL_STOP_EVENT.clear()
+        try:
+            result = get_tool_agent().run(task, emit=emit, stop_event=_TOOL_STOP_EVENT)
+            emit('Tool agent response: ' + result)
+        except (OSError, RuntimeError, ValueError) as exc:
+            emit(f'Tool agent stopped: {exc}')
+        return
+    default_registry.connect_mcp_servers()
     tools = default_registry.list_tools()
     emit("\n--- HariAI Autonomous & MCP Tools ---")
     for t in tools:
         source_label = f"[{t.server_name}]" if t.server_name else "[built-in]"
         emit(f"  • {t.name:<24} {source_label:<12} {t.description[:60]}...")
+    emit("  Run a task with: /tools run <task>\n")
     emit("-------------------------------------\n")
 
 
@@ -512,25 +541,17 @@ def cmd_mcp(args: List[str], *, emit=print) -> None:
 
 
 def cmd_autonomous(args: List[str] | str, *, emit=print) -> None:
-    """Hands-free autonomous computer control mode.
-
-    Tri-level architecture:
-      - System 1: Open-JEV & Sub-Millisecond Input Execution
-      - System 2: HariAI Deliberate Thinking
-      - System 3: Open Web & Web Search Fallback
-    Displays floating 'Take over' pill & purple screen edge glow with [ Pause ] and [ Take over ].
-    """
+    """Run a bounded autonomous desktop task through the configured local vision agent."""
     goal = " ".join(args) if isinstance(args, list) else str(args)
     if not goal.strip():
-        goal = "Interactive autonomous desktop session"
-        emit("✦ Activating Autonomous Control Mode...")
-        emit("  Opening Floating Takeover Window: [ Pause ]  [ Take over ]")
-        emit("  Safety: Click [ Take over ] or press <Esc> anytime to release control.")
-
-    from hari_ai.agent.autonomous import AutonomousAgent
-    agent = AutonomousAgent()
-    res = agent.run(goal, emit=emit)
-    emit(f"\nAutonomous result: {res.status} ({res.total_steps} steps)")
+        emit('Usage: /autonomous <desktop task>\nConfigure with /agent model NAME and /agent select first.')
+        emit(get_desktop_agent().status_text())
+        return
+    try:
+        result = get_desktop_agent().command('auto ' + goal, emit=emit)
+        emit(result)
+    except (OSError, RuntimeError, ValueError) as exc:
+        emit(f'Autonomous mode could not run: {exc}')
 
 
 def cmd_takeover(*, emit=print) -> None:
@@ -625,8 +646,9 @@ def repl() -> None:
         elif lower.startswith('/convert ') or lower.startswith('convert '):
             parts = shlex.split(user_input.split(' ', 1)[1], posix=False)
             cmd_convert(parts)
-        elif lower in ['/tools', 'tools']:
-            cmd_tools()
+        elif lower in ['/tools', 'tools'] or lower.startswith('/tools ') or lower.startswith('tools '):
+            parts = shlex.split(user_input, posix=False)
+            cmd_tools(parts[1:])
         elif lower.startswith('/mcp') or lower.startswith('mcp'):
             parts = shlex.split(user_input, posix=False)
             cmd_mcp(parts[1:] if len(parts) > 1 else [])
@@ -660,7 +682,9 @@ def dashboard_command(command: str, argument: str, *, emit=None) -> str:
         return ('/ask <message>      Chat with the selected model\n'
                 '/convert <f> [fmt]  Convert documents (PDF, Word, PPTX, Excel, TXT, MD, HTML)\n'
                 '/autonomous <goal>  Hands-free autonomous computer control mode\n'
+                '/agent help         Configure local desktop automation\n'
                 '/tools              List autonomous and MCP tools\n'
+                '/tools run <task>   Let the local model plan and call available tools\n'
                 '/mcp [list|add]     Model Context Protocol integrations\n'
                 '/swarm <topic>      Multi-bot debate & collaborative consensus\n'
                 '/code <task>        Request code\n'
@@ -688,6 +712,22 @@ def dashboard_command(command: str, argument: str, *, emit=None) -> str:
                 '/exit               Exit HariAI\n\n'
                 'Enter: send · Up/Down: input history · Esc: stop reply\n'
                 'F2: show/hide panels · Ctrl+L: new chat · Ctrl+Q: quit')
+    sink = emit or lines.append
+    if command == '/agent':
+        try:
+            result = get_desktop_agent().command(argument, emit=sink)
+            if emit and result:
+                sink(result)
+                return ''
+            return result
+        except (OSError, RuntimeError, ValueError) as exc:
+            return f'Desktop agent: {exc}'
+    if command == '/tools':
+        parts = shlex.split(argument, posix=False)
+        parts = [part[1:-1] if len(part) >= 2 and part[0] == part[-1] and part[0] in '"\'' else part
+                 for part in parts]
+        cmd_tools(parts, emit=sink)
+        return '' if emit else '\n'.join(lines).strip()
     no_args = {'/status': cmd_status, '/info': cmd_info, '/version': cmd_version, '/tools': cmd_tools, '/takeover': cmd_takeover}
     text_args = {
         '/search': cmd_search,
@@ -713,7 +753,7 @@ def dashboard_command(command: str, argument: str, *, emit=None) -> str:
     elif command in no_args:
         no_args[command](emit=lines.append)
     elif command in text_args:
-        text_args[command](argument, emit=lines.append)
+        text_args[command](argument, emit=sink)
     elif command in list_args:
         parts = [part[1:-1] if len(part) >= 2 and part[0] == part[-1] and part[0] in '\"\'' else part
                  for part in shlex.split(argument, posix=False)]
@@ -740,7 +780,7 @@ def launch_chat(*, plain: bool = False) -> None:
     _DREAM_CONTROLLER.start_auto_dreamer()
     while True:
         app = HariDashboard(lambda: _CHAT_ENGINE, _DREAM_CONTROLLER, dashboard_command, swarm=_SWARM_ENGINE,
-                            agent_getter=lambda: _DESKTOP_AGENT, tool_getter=lambda: _TOOL_AGENT)
+                            agent_getter=get_desktop_agent, tool_getter=get_tool_agent)
         app.run()
         if getattr(app, 'switch_to_silent', False) is True:
             res = repl()

@@ -132,8 +132,8 @@ class SessionStatus:
             readiness = 'Research checkpoint loaded' if loaded else 'No trained checkpoint loaded'
         else:
             model_name = settings.ollama_model or 'Ollama · automatic selection'
-            device = 'Ollama service · device unverified'
-            readiness = 'Service unverified · checked when chatting'
+            device = 'Ollama · device not reported'
+            readiness = 'Ollama selected · checked on next chat'
 
         stats = engine.memory.get_status_summary()
         cycles = self._dream.sleep_cycle_history

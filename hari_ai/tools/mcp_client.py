@@ -7,9 +7,11 @@ and Antigravity MCP specifications).
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+import atexit
 import json
 import os
 from pathlib import Path
+import queue
 import subprocess
 import threading
 import time
@@ -100,6 +102,9 @@ class MCPClient:
         self._lock = threading.Lock()
         self._tools: List[MCPTool] = []
         self._server_info: Dict[str, Any] = {}
+        self._responses: queue.Queue[str | None] = queue.Queue()
+        self._reader_thread: Optional[threading.Thread] = None
+        self._stderr_thread: Optional[threading.Thread] = None
 
     def start(self, timeout: float = 10.0) -> bool:
         """Starts the MCP server process and completes the protocol handshake."""
@@ -123,6 +128,17 @@ class MCPClient:
             )
         except Exception:
             return False
+
+        # Drain stdout and stderr continuously. A direct readline() in the
+        # request path can otherwise block past the advertised timeout or let
+        # verbose servers deadlock on a full stderr pipe.
+        self._reader_thread = threading.Thread(target=self._read_stdout, daemon=True,
+                                               name=f'HariAI-MCP-{self.config.name}-stdout')
+        self._stderr_thread = threading.Thread(target=self._drain_stderr, daemon=True,
+                                               name=f'HariAI-MCP-{self.config.name}-stderr')
+        self._reader_thread.start()
+        self._stderr_thread.start()
+        atexit.register(self.stop)
 
         # Protocol handshake: initialize
         init_req = {
@@ -149,15 +165,44 @@ class MCPClient:
     def stop(self) -> None:
         """Gracefully terminates the MCP server process."""
         if self.proc:
+            proc = self.proc
+            self.proc = None
             try:
-                self.proc.terminate()
-                self.proc.wait(timeout=2.0)
+                proc.terminate()
+                proc.wait(timeout=2.0)
             except Exception:
                 try:
-                    self.proc.kill()
+                    proc.kill()
                 except Exception:
                     pass
-            self.proc = None
+            for stream in (proc.stdin, proc.stdout, proc.stderr):
+                try:
+                    if stream:
+                        stream.close()
+                except (OSError, ValueError):
+                    pass
+
+    def _read_stdout(self) -> None:
+        proc = self.proc
+        if not proc or not proc.stdout:
+            return
+        try:
+            for line in proc.stdout:
+                self._responses.put(line)
+        except (OSError, ValueError):
+            pass
+        finally:
+            self._responses.put(None)
+
+    def _drain_stderr(self) -> None:
+        proc = self.proc
+        if not proc or not proc.stderr:
+            return
+        try:
+            for _ in proc.stderr:
+                pass
+        except (OSError, ValueError):
+            pass
 
     def list_tools(self, timeout: float = 5.0) -> List[MCPTool]:
         """Discovers tools available on the MCP server."""
@@ -189,7 +234,8 @@ class MCPClient:
         self._tools = tools
         return tools
 
-    def call_tool(self, name: str, arguments: Dict[str, Any], timeout: float = 30.0) -> Dict[str, Any]:
+    def call_tool(self, name: str, arguments: Dict[str, Any], timeout: float = 30.0,
+                  stop_event: Optional[threading.Event] = None) -> Dict[str, Any]:
         """Calls a tool on the MCP server and returns the result."""
         if not self.proc:
             return {"isError": True, "content": [{"type": "text", "text": "MCP server is not running."}]}
@@ -200,7 +246,7 @@ class MCPClient:
             "method": "tools/call",
             "params": {"name": name, "arguments": arguments},
         }
-        res = self._send_request(req, timeout=timeout)
+        res = self._send_request(req, timeout=timeout, stop_event=stop_event)
         if not res:
             return {"isError": True, "content": [{"type": "text", "text": "MCP call timed out or failed."}]}
         if "error" in res:
@@ -216,40 +262,42 @@ class MCPClient:
         if not self.proc or not self.proc.stdin:
             return
         try:
-            line = json.dumps(payload) + "\n"
-            self.proc.stdin.write(line)
-            self.proc.stdin.flush()
+            with self._lock:
+                self.proc.stdin.write(json.dumps(payload) + "\n")
+                self.proc.stdin.flush()
         except Exception:
             pass
 
-    def _send_request(self, payload: Dict[str, Any], timeout: float = 10.0) -> Optional[Dict[str, Any]]:
+    def _send_request(self, payload: Dict[str, Any], timeout: float = 10.0,
+                      stop_event: Optional[threading.Event] = None) -> Optional[Dict[str, Any]]:
         if not self.proc or not self.proc.stdin or not self.proc.stdout:
             return None
-        with self._lock:
-            try:
+        try:
+            with self._lock:
                 line = json.dumps(payload) + "\n"
                 self.proc.stdin.write(line)
                 self.proc.stdin.flush()
-
-                # Read response line with timeout
-                start = time.monotonic()
-                while time.monotonic() - start < timeout:
-                    if self.proc.poll() is not None:
+                deadline = time.monotonic() + timeout
+                while True:
+                    if stop_event is not None and stop_event.is_set():
                         return None
-                    resp_line = self.proc.stdout.readline()
-                    if not resp_line:
-                        time.sleep(0.02)
-                        continue
-                    resp_line = resp_line.strip()
-                    if not resp_line:
-                        continue
+                    remaining = deadline - time.monotonic()
+                    if remaining <= 0 or self.proc.poll() is not None:
+                        return None
+                    try:
+                        resp_line = self._responses.get(timeout=min(remaining, 0.1 if stop_event else remaining))
+                    except queue.Empty:
+                        if stop_event is not None and not stop_event.is_set():
+                            continue
+                        return None
+                    if resp_line is None:
+                        return None
                     try:
                         data = json.loads(resp_line)
-                        if data.get("id") == payload.get("id"):
-                            return data
-                    except json.JSONDecodeError:
+                    except (json.JSONDecodeError, TypeError):
                         continue
-                return None
-            except Exception:
-                return None
+                    if isinstance(data, dict) and data.get("id") == payload.get("id"):
+                        return data
+        except Exception:
+            return None
 

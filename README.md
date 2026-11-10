@@ -35,20 +35,25 @@ for the application; it does not imply that a new language model was trained.
 
 `hari`, `hari run`, and `python -m hari_ai.cli` open the purple **live terminal
 dashboard** in an interactive terminal. It includes streaming chat, grey token
-likelihood beneath replies, a creator profile, and five panels for runtime,
-capabilities, Dream inspection, cluster state, and clickable commands.
+likelihood beneath replies, a creator profile, and live panels for runtime,
+capabilities, Dream inspection, cluster state, Mahakaal artwork, and commands.
 
 ![HariAI live terminal dashboard](docs/images/terminal-dashboard.png)
 
 The screenshot is a real local session; its model size and telemetry are sampled,
 not example targets. Model availability, device, uptime, CPU/RAM, conversation
 counts, reply activity, and Dream inspection counts update from runtime state.
-Inactive training and cluster workers are labelled accurately. No background
-training or autonomous workers are started by opening the dashboard.
+The idle Dream worker starts with the terminal and consolidates new session
+experiences after inactivity. It does not train model weights. Desktop and
+MCP tool actions start only after you give an explicit task.
 
 Maximize the terminal for the two-column layout (112 columns or more). On narrow
 windows, **F2** switches between chat and the panels. **Esc** stops a streaming
 reply; **Ctrl+L** starts a new chat; **Ctrl+Q** quits; **Up/Down** recall input.
+The Mahakaal panel loads the packaged PNG and renders it in high-contrast
+half-cell color blocks. This avoids terminal graphics protocols that can leave
+stale rows in a live Textual screen. The displayed image keeps its aspect ratio;
+installations without the image widget use the larger built-in renderer.
 Use `/info` for the creator card, `/settings show` for configuration, and `/help`
 for commands. Existing commands remain available inside the dashboard.
 `hari run --plain` keeps the line-based interface; redirected input/output use it
@@ -85,8 +90,9 @@ hari settings backend local
 | Local language model | Experimental conversation | About 92 MB; failed basic arithmetic, factual and coding checks |
 | Open-JEV reference | Typed decision architecture, packaged with attribution | Not TypeSafe AI's production Jev model |
 | Operation-policy experiment | A small trained Open-JEV classifier for a fixed JSON schema | Checkpoint is local and excluded from Git; advisory only |
-| Memory | Explicit local save, inspect and delete | Plaintext; not automatically used for training |
-| Dream research | Inspect experiences and run separate candidate experiments | No automatic self-improvement or production checkpoint promotion |
+| Memory and Dream | Explicit saved memory plus automatic idle consolidation of new session experiences | No automatic model weight updates or production checkpoint promotion |
+| Autonomous desktop | Local vision model, selected screen region, bounded actions, Pause/Take over | Requires Ollama with an installed local vision model; model completion still needs human review |
+| MCP tools | Local model plans calls to built-in tools and explicitly configured MCP servers | Tool planning requires the local GGUF backend and stops on invalid plans or arguments |
 | Original Nano | Archived research implementation, explicitly selectable | Failed general-chat probes; no longer the default |
 
 The original 35 MB target is **not met** by the chat model. File size, installed
@@ -142,6 +148,46 @@ Settings and saved memories live in `~/.hari_ai`, or `HARIAI_DATA_DIR` when set.
 Chat history is held in the session. Saved memories are plaintext and are not
 fed into training automatically. The separate `search` command uses the network;
 ordinary local chat does not.
+
+## Autonomous tasks and MCP tools
+
+The terminal has two task runners. MCP tasks use the local HariAI text model to
+choose from registered tools and pass validated JSON arguments. To add an MCP
+stdio server, configure it and start a task:
+
+```bash
+hari mcp add SERVER_NAME COMMAND ARGUMENTS...
+hari mcp connect
+hari tools
+hari tools run "Search for the document and convert it to Markdown"
+```
+
+The in-chat form is `/tools run <task>`. It makes at most five tool calls, checks
+arguments against the advertised schema, and stops on malformed plans, errors,
+or Escape. This planning path requires the local GGUF chat backend; tool
+descriptions and results do not switch to an online model. Only built-ins and
+MCP servers you configured are offered to the planner.
+
+Desktop control is separate because the small chat model cannot read pixels.
+Install the optional desktop dependencies, run HariAI, choose a locally
+installed vision model, and select the exact screen region before starting:
+
+```bash
+python -m pip install -e ".[desktop]"
+hari run
+```
+
+Then enter `/agent model <installed-vision-model>`, `/agent select`, and
+`/auto <desktop task>`. The controller checks Ollama's `/api/show` response for
+the `vision` capability before it captures a screenshot, and sends that image
+only to the configured loopback service using Ollama's image input API. It
+observes after each action and stops after eight actions. Pause, Take over, or
+Escape stops the loop; an in-flight local inference may return before the stop
+is acknowledged, and no later action is applied. A “model reports complete”
+message is a request to review the target application, not proof of success.
+See [Ollama's vision API guide](https://github.com/ollama/ollama/blob/main/docs/capabilities/vision.mdx).
+The recommended accessibility/OCR/vision layering is described in
+[`docs/research/DESKTOP_PERCEPTION.md`](docs/research/DESKTOP_PERCEPTION.md).
 
 The CLI shows the **average base-model token likelihood** after local
 model-generated replies. For example, `Token likelihood: 83%` means the model assigned its generated tokens an average probability

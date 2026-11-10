@@ -113,23 +113,34 @@ class ToolRegistry:
         for name, conf in configs.items():
             if not conf.enabled:
                 continue
-            client = MCPClient(conf)
-            if client.start():
+            client = self._mcp_clients.get(name)
+            if not client or not client.proc or client.proc.poll() is not None:
+                if client:
+                    client.stop()
+                client = MCPClient(conf)
+                if not client.start():
+                    continue
                 self._mcp_clients[name] = client
-                tools = client.list_tools()
-                for t in tools:
-                    self.register(
-                        ToolDefinition(
-                            name=f"{name}__{t.name}",
-                            description=f"[{name}] {t.description}",
-                            parameters=t.parameters,
-                            server_name=name,
-                        )
+            tools = client.list_tools()
+            for t in tools:
+                self.register(
+                    ToolDefinition(
+                        name=f"{name}__{t.name}",
+                        description=f"[{name}] {t.description}",
+                        parameters=t.parameters,
+                        server_name=name,
                     )
-                discovered[name] = len(tools)
+                )
+            discovered[name] = len(tools)
         return discovered
 
-    def execute_tool(self, name: str, arguments: Dict[str, Any]) -> Dict[str, Any]:
+    def close(self) -> None:
+        """Stop all configured MCP subprocesses owned by this registry."""
+        for client in self._mcp_clients.values():
+            client.stop()
+        self._mcp_clients.clear()
+
+    def execute_tool(self, name: str, arguments: Dict[str, Any], stop_event=None) -> Dict[str, Any]:
         """Executes a tool by name, routing either to built-in handler or MCP server."""
         tool = self.get_tool(name)
         if not tool:
@@ -141,7 +152,7 @@ class ToolRegistry:
             if not client:
                 return {"error": f"MCP server '{tool.server_name}' is not connected."}
             actual_tool_name = name.split("__", 1)[-1]
-            return client.call_tool(actual_tool_name, arguments)
+            return client.call_tool(actual_tool_name, arguments, stop_event=stop_event)
 
         # Built-in Tool execution
         if tool.handler:

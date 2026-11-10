@@ -154,10 +154,15 @@ class DreamEngineController:
         self._auto_dream_active = False
         self._auto_worker_thread: Optional[threading.Thread] = None
         self._stop_worker_event = threading.Event()
+        self._auto_last_error: Optional[str] = None
 
     @property
     def auto_dream_active(self) -> bool:
-        return self._auto_dream_active
+        return self._auto_dream_active and bool(self._auto_worker_thread and self._auto_worker_thread.is_alive())
+
+    @property
+    def auto_dream_error(self) -> Optional[str]:
+        return self._auto_last_error
 
     def notify_user_activity(self) -> None:
         """Call whenever user interacts with the system. Resets idle timer and wakes system."""
@@ -176,6 +181,11 @@ class DreamEngineController:
             if e.entry_id not in self._consolidated_entry_ids
         ]
 
+        # Idle time alone is not work. Do not spin empty Dream cycles after the
+        # session has already consolidated everything it has learned.
+        if not unconsolidated:
+            return None
+
         if len(unconsolidated) >= self.memory_threshold_entries:
             return SleepTrigger.MEMORY_THRESHOLD
 
@@ -191,22 +201,23 @@ class DreamEngineController:
 
     def start_auto_dreamer(self, check_interval: float = 5.0) -> None:
         """Starts an autonomous background worker checking idle & memory sleep conditions."""
+        if not isinstance(check_interval, (int, float)) or check_interval <= 0:
+            raise ValueError('The Dream check interval must be positive.')
         if self._auto_dream_active:
             return
         self._auto_dream_active = True
+        self._auto_last_error = None
         self._stop_worker_event.clear()
 
         def _worker_loop():
-            while not self._stop_worker_event.is_set():
-                time.sleep(check_interval)
-                if self._stop_worker_event.is_set():
-                    break
+            while not self._stop_worker_event.wait(check_interval):
                 trigger = self.should_enter_sleep()
                 if trigger is not None:
                     try:
                         self.run_sleep_cycle(trigger=trigger)
-                    except Exception:
-                        pass
+                        self._auto_last_error = None
+                    except Exception as exc:
+                        self._auto_last_error = f'{type(exc).__name__}: {exc}'
 
         self._auto_worker_thread = threading.Thread(target=_worker_loop, daemon=True, name="HariAI-AutoDreamer")
         self._auto_worker_thread.start()
@@ -395,10 +406,6 @@ class DreamEngineController:
             else:
                 regression_passed = self._evaluate_invariant_regression_suite()
 
-            if regression_passed:
-                promoted = True
-                candidate_checkpoint = f"lora-adapter-{cycle_id}"
-
         t_end = time.time()
         self.current_state = SystemState.WAKE
 
@@ -417,7 +424,8 @@ class DreamEngineController:
             promoted=promoted,
             details={
                 "preempted": self._preempt_requested,
-                "status": "consolidated" if not self._preempt_requested else "preempted",
+                "status": "memory_consolidated" if not self._preempt_requested else "preempted",
+                "weight_update": "none; this Dream cycle consolidates memory and evaluates invariants only",
                 "total_synthetic_rehearsal_buffer": len(self.synthetic_rehearsal_buffer),
                 "theoretical_foundations": [
                     "Complementary Learning Systems (CLS) Theory (McClelland et al., 1995; Kumaran et al., 2016)",

@@ -70,8 +70,9 @@ class TestDecisionValidation(unittest.TestCase):
         valid = [
             ("click", {"box": BOX}), ("right_click", {"box": BOX}),
             ("double_click", {"box": BOX}), ("hover", {"box": BOX}),
-            ("type", {"box": BOX, "text": "hello"}), ("press", {"key": "enter"}),
-            ("hotkey", {"keys": ["ctrl", "a"]}),
+            ("type", {"box": BOX, "text": "hello"}),
+            ("press", {"box": BOX, "key": "enter"}),
+            ("hotkey", {"box": BOX, "keys": ["ctrl", "a"]}),
             ("scroll", {"box": BOX, "amount": -10}), ("wait", {"milliseconds": 1000}),
         ]
         for kind, args in valid:

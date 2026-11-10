@@ -2,9 +2,11 @@
 
 The attached design calls for opt-in learning from approved experiences, offline
 candidate training, replay, independent evaluation, rollback and resource-aware
-scheduling. These remain research goals. The interactive Dream controller now
-performs inspection only; it neither invents a checkpoint nor marks chat output
-as a verified procedure. Conversation data is not fed into the experiment below.
+scheduling. These remain research goals. The interactive Dream controller
+consolidates new session experiences into local memory after inactivity and
+generates rehearsal prompts. It does not train or promote weights, and it does
+not mark chat output as a verified procedure. Conversation data is not fed into
+the experiment below. The idle worker skips cycles when there is no new data.
 
 ## First measured offline candidate
 
@@ -48,9 +50,10 @@ guarantee retention of behavior after merging.
    per-user isolation, and resource-aware pause/resume.
 3. Compare replay and LoRA against matched no-replay and frozen-model controls,
    measuring old and new capabilities and serialized model-plus-adapter bytes.
-4. Add configurable idle scheduling only after the candidate workflow can be
-   interrupted safely and audited. Automatic self-improvement is not currently
-   implemented and should not be claimed.
+4. Connect idle scheduling to candidate training only after the training job can
+   be interrupted safely, evaluated on held-out general tasks, and audited.
+   Automatic model-weight self-improvement is not currently implemented and
+   should not be claimed.
 
 Background: [Google Sleep Framework](https://research.google/blog/the-sleep-framework-a-new-way-for-llms-to-retain-knowledge-in-continual-learning/),
 [Nested Learning](https://research.google/blog/introducing-nested-learning-a-new-ml-paradigm-for-continual-learning/),
