@@ -157,12 +157,15 @@ class HariDashboard(App):
         Binding('f1', 'help', 'Help', priority=True),
     ]
 
-    def __init__(self, engine_getter: Callable, dream_controller, command_handler: Callable, swarm=None):
+    def __init__(self, engine_getter: Callable, dream_controller, command_handler: Callable, swarm=None,
+                 agent_getter: Callable | None = None, tool_getter: Callable | None = None, **kwargs):
         super().__init__()
         self.engine_getter = engine_getter
         self.dream = dream_controller
         self.command_handler = command_handler
         self.swarm = swarm
+        self.agent_getter = agent_getter
+        self.tool_getter = tool_getter
         self.switch_to_silent = False
         self.status = SessionStatus(engine_getter, dream_controller)
         self.busy = False
@@ -204,6 +207,7 @@ class HariDashboard(App):
                     yield Button('/status     Live system details', id='quick-status')
                     yield Button('/convert    Document converter', id='quick-convert')
                     yield Button('/tools      Autonomous & MCP', id='quick-tools')
+                    yield Button('/auto       Autonomous control', id='quick-auto')
                     yield Button('/swarm      Multi-bot debate', id='quick-swarm')
                     yield Button('/silent     Minimal terminal', id='quick-silent')
                     yield Button('/dream      Sleep consolidation', id='quick-dream')

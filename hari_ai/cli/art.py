@@ -77,10 +77,15 @@ def get_mahakal_text(
 
     try:
         img = Image.open(path).convert("RGB")
+        # For compact sidebar or small cards, focus on the iconic upper silhouette (moon, face, trishul)
+        if height_lines <= 8:
+            w_img, h_img = img.size
+            img = img.crop((int(w_img * 0.05), int(h_img * 0.02), int(w_img * 0.95), int(h_img * 0.65)))
+
         # Enhance contrast, sharpness, and brightness so fine contours (Trishul, moon) pop vibrantly
-        enh = ImageEnhance.Contrast(img).enhance(2.2)
-        sharp = ImageEnhance.Sharpness(enh).enhance(2.5)
-        boosted = ImageEnhance.Brightness(sharp).enhance(1.25)
+        enh = ImageEnhance.Contrast(img).enhance(2.6)
+        sharp = ImageEnhance.Sharpness(enh).enhance(2.6)
+        boosted = ImageEnhance.Brightness(sharp).enhance(1.3)
 
         img_resized = ImageOps.contain(boosted, (width, pixel_height), method=Image.Resampling.LANCZOS)
 
@@ -122,9 +127,13 @@ def get_mahakal_ascii(width: int = 14, height: int = 5) -> Text:
 
     try:
         img = Image.open(path).convert("L")
-        enh = ImageEnhance.Contrast(img).enhance(2.2)
-        sharp = ImageEnhance.Sharpness(enh).enhance(2.5)
-        bright = ImageEnhance.Brightness(sharp).enhance(1.25)
+        if height <= 8:
+            w_img, h_img = img.size
+            img = img.crop((int(w_img * 0.05), int(h_img * 0.02), int(w_img * 0.95), int(h_img * 0.65)))
+
+        enh = ImageEnhance.Contrast(img).enhance(2.6)
+        sharp = ImageEnhance.Sharpness(enh).enhance(2.6)
+        bright = ImageEnhance.Brightness(sharp).enhance(1.3)
 
         img_resized = ImageOps.contain(bright, (width, height), method=Image.Resampling.LANCZOS)
         canvas = Image.new("L", (width, height), 0)

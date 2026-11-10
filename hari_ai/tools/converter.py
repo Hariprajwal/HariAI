@@ -118,9 +118,17 @@ class _HTMLToDocumentParser(HTMLParser):
 
 
 class DocumentConverter:
-    """Universal document converter with built-in pure-Python handlers."""
+    """Universal document converter with built-in pure-Python handlers.
 
-    SUPPORTED_FORMATS = {"pdf", "docx", "txt", "md", "html", "htm", "json", "csv", "tsv", "rtf"}
+    Supports: PDF, Word (.docx), PowerPoint (.pptx, .ppt), Excel (.xlsx, .xls),
+    Markdown (.md), Text (.txt), HTML (.html), JSON (.json), CSV (.csv),
+    TSV (.tsv), and RTF (.rtf).
+    """
+
+    SUPPORTED_FORMATS = {
+        "pdf", "docx", "doc", "pptx", "ppt", "xlsx", "xls",
+        "txt", "md", "html", "htm", "json", "csv", "tsv", "rtf",
+    }
 
     @classmethod
     def detect_format(cls, path_or_ext: str | Path) -> str:
@@ -134,6 +142,12 @@ class DocumentConverter:
             return "md"
         if s in ("text", "txt"):
             return "txt"
+        if s in ("presentation", "pptx", "ppt"):
+            return "pptx" if s == "pptx" else s
+        if s in ("spreadsheet", "excel", "xlsx", "xls"):
+            return "xlsx" if s == "xlsx" else s
+        if s in ("word", "docx", "doc"):
+            return "docx" if s == "docx" else s
         if s in cls.SUPPORTED_FORMATS:
             return s
         return "txt"
@@ -146,6 +160,14 @@ class DocumentConverter:
         fmt = self.detect_format(path)
         if fmt == "docx":
             return self.read_docx(path)
+        elif fmt == "pptx":
+            return self.read_pptx(path)
+        elif fmt == "ppt":
+            return self.read_ppt(path)
+        elif fmt == "xlsx":
+            return self.read_xlsx(path)
+        elif fmt == "xls":
+            return self.read_xls(path)
         elif fmt == "pdf":
             return self.read_pdf(path)
         elif fmt == "html":
@@ -288,6 +310,98 @@ class DocumentConverter:
         title = headings[0][1] if headings else path.stem
         return DocumentContent(title=title, paragraphs=paragraphs, headings=headings, tables=tables)
 
+    def read_pptx(self, path: Path) -> DocumentContent:
+        """Extracts slide text, headings, and bullet points from PowerPoint .pptx."""
+        paragraphs: List[str] = []
+        headings: List[Tuple[int, str]] = []
+        title = ""
+
+        with zipfile.ZipFile(path, "r") as z:
+            slide_files = sorted(
+                [n for n in z.namelist() if re.match(r"^ppt/slides/slide\d+\.xml$", n)],
+                key=lambda n: int(re.search(r"\d+", n.rsplit("/", 1)[-1]).group()) if re.search(r"\d+", n.rsplit("/", 1)[-1]) else 0,
+            )
+            for slide_idx, slide_name in enumerate(slide_files, start=1):
+                slide_xml = z.read(slide_name).decode("utf-8", errors="replace")
+                chunks = re.findall(r"<a:t[^>]*>(.*?)</a:t>", slide_xml)
+                clean_chunks = [html.unescape(c).strip() for c in chunks if c.strip()]
+                if clean_chunks:
+                    slide_heading = clean_chunks[0]
+                    headings.append((2, f"Slide {slide_idx}: {slide_heading}"))
+                    if not title:
+                        title = slide_heading
+                    slide_body = "\n".join(clean_chunks)
+                    paragraphs.append(slide_body)
+
+        title = title or path.stem
+        return DocumentContent(title=title, paragraphs=paragraphs, headings=headings)
+
+    def read_ppt(self, path: Path) -> DocumentContent:
+        """Extracts text streams from legacy PowerPoint .ppt binary files."""
+        data = path.read_bytes()
+        ascii_matches = re.findall(rb"[A-Za-z0-9 ,.;:!?'\"\-_/\\()]{4,}", data)
+        text_lines = [m.decode("latin1", errors="ignore").strip() for m in ascii_matches if len(m.strip()) > 3]
+        paragraphs = [line for line in text_lines if not re.match(r"^[0-9a-fA-F_]+$", line)]
+        title = paragraphs[0] if paragraphs else path.stem
+        return DocumentContent(title=title, paragraphs=paragraphs)
+
+    def read_xlsx(self, path: Path) -> DocumentContent:
+        """Extracts worksheet tables, rows, and cells from Excel .xlsx."""
+        paragraphs: List[str] = []
+        tables: List[List[List[str]]] = []
+
+        with zipfile.ZipFile(path, "r") as z:
+            shared_strings: List[str] = []
+            if "xl/sharedStrings.xml" in z.namelist():
+                sst_xml = z.read("xl/sharedStrings.xml").decode("utf-8", errors="replace")
+                shared_strings = [html.unescape(t) for t in re.findall(r"<t[^>]*>(.*?)</t>", sst_xml)]
+
+            sheet_files = sorted(
+                [n for n in z.namelist() if re.match(r"^xl/worksheets/sheet\d+\.xml$", n)],
+                key=lambda n: int(re.search(r"\d+", n.rsplit("/", 1)[-1]).group()) if re.search(r"\d+", n.rsplit("/", 1)[-1]) else 0,
+            )
+            for sheet_name in sheet_files:
+                sheet_xml = z.read(sheet_name).decode("utf-8", errors="replace")
+                sheet_table: List[List[str]] = []
+                row_matches = re.findall(r"<row[^>]*>(.*?)</row>", sheet_xml, re.DOTALL)
+                for row_str in row_matches:
+                    row_cells: List[str] = []
+                    cell_matches = re.findall(r"<c\b([^>]*)>(.*?)</c>", row_str, re.DOTALL)
+                    for attr_str, cell_body in cell_matches:
+                        is_shared = 't="s"' in attr_str
+                        is_inline = 't="inlineStr"' in attr_str
+                        if is_shared:
+                            v_match = re.search(r"<v>(.*?)</v>", cell_body)
+                            if v_match and v_match.group(1).isdigit():
+                                idx = int(v_match.group(1))
+                                val = shared_strings[idx] if idx < len(shared_strings) else ""
+                            else:
+                                val = ""
+                        elif is_inline:
+                            t_match = re.search(r"<t[^>]*>(.*?)</t>", cell_body)
+                            val = html.unescape(t_match.group(1)) if t_match else ""
+                        else:
+                            v_match = re.search(r"<v>(.*?)</v>", cell_body)
+                            val = v_match.group(1) if v_match else ""
+                        row_cells.append(val.strip())
+                    if any(row_cells):
+                        sheet_table.append(row_cells)
+                if sheet_table:
+                    tables.append(sheet_table)
+                    for r in sheet_table:
+                        paragraphs.append(" | ".join(r))
+
+        title = path.stem
+        return DocumentContent(title=title, paragraphs=paragraphs, tables=tables)
+
+    def read_xls(self, path: Path) -> DocumentContent:
+        """Extracts text and values from legacy Excel .xls binary files."""
+        data = path.read_bytes()
+        ascii_matches = re.findall(rb"[A-Za-z0-9 ,.;:!?'\"\-_/\\()]{3,}", data)
+        text_lines = [m.decode("latin1", errors="ignore").strip() for m in ascii_matches if len(m.strip()) > 2]
+        paragraphs = [line for line in text_lines if not re.match(r"^[0-9a-fA-F_]+$", line)]
+        return DocumentContent(title=path.stem, paragraphs=paragraphs)
+
     def read_pdf(self, path: Path) -> DocumentContent:
         """Extracts text from PDF files using pure-Python stream decoder or pypdf if available."""
         # 1. Try pypdf if installed
@@ -337,6 +451,10 @@ class DocumentConverter:
         target_path.parent.mkdir(parents=True, exist_ok=True)
         if fmt == "docx":
             return self.write_docx(content, target_path)
+        elif fmt in ("pptx", "ppt"):
+            return self.write_pptx(content, target_path)
+        elif fmt in ("xlsx", "xls"):
+            return self.write_xlsx(content, target_path)
         elif fmt == "pdf":
             return self.write_pdf(content, target_path)
         elif fmt == "html":
@@ -492,6 +610,192 @@ class DocumentConverter:
         target_path.write_bytes(buf.getvalue())
         return target_path
 
+    def write_pptx(self, content: DocumentContent, target_path: Path) -> Path:
+        """Pure-Python OpenXML PowerPoint .pptx presentation generator."""
+        buf = io.BytesIO()
+        slides_data: List[Tuple[str, List[str]]] = []
+        # Title slide
+        slides_data.append((content.title or "Presentation", ["Generated with HariAI Universal Converter"]))
+
+        # Collect non-heading paragraphs
+        heading_set = {h for _, h in content.headings}
+        body_paras = [p for p in content.paragraphs if p not in heading_set]
+
+        if content.headings:
+            for idx, (_, h) in enumerate(content.headings):
+                assigned_bullets = body_paras[:3] if idx == 0 else body_paras[3 * idx : 3 * (idx + 1)]
+                slides_data.append((h, assigned_bullets))
+            rem = body_paras[3 * len(content.headings):]
+            if rem:
+                for i in range(0, len(rem), 3):
+                    chunk = rem[i : i + 3]
+                    slides_data.append((chunk[0][:60], chunk))
+        elif content.paragraphs:
+            chunk_size = 3
+            for i in range(0, len(content.paragraphs), chunk_size):
+                chunk = content.paragraphs[i : i + chunk_size]
+                slide_title = chunk[0][:60]
+                slide_bullets = chunk[1:] if len(chunk) > 1 else chunk
+                slides_data.append((slide_title, slide_bullets))
+        if not slides_data:
+            slides_data.append(("HariAI Presentation", ["Document Conversion Completed"]))
+
+        with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as z:
+            ct_overrides = []
+            for i in range(1, len(slides_data) + 1):
+                ct_overrides.append(
+                    f'<Override PartName="/ppt/slides/slide{i}.xml" '
+                    f'ContentType="application/vnd.openxmlformats-officedocument.presentationml.slide+xml"/>'
+                )
+            z.writestr(
+                "[Content_Types].xml",
+                '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+                '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">'
+                '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>'
+                '<Default Extension="xml" ContentType="application/xml"/>'
+                '<Override PartName="/ppt/presentation.xml" ContentType="application/vnd.openxmlformats-officedocument.presentationml.presentation.main+xml"/>'
+                + "".join(ct_overrides)
+                + '</Types>',
+            )
+            z.writestr(
+                "_rels/.rels",
+                '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+                '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
+                '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="ppt/presentation.xml"/>'
+                '</Relationships>',
+            )
+            pres_rels = []
+            for i in range(1, len(slides_data) + 1):
+                pres_rels.append(
+                    f'<Relationship Id="rId{i}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide" Target="slides/slide{i}.xml"/>'
+                )
+            z.writestr(
+                "ppt/_rels/presentation.xml.rels",
+                '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+                '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
+                + "".join(pres_rels)
+                + '</Relationships>',
+            )
+            sld_ids = []
+            for i in range(1, len(slides_data) + 1):
+                sld_ids.append(f'<p:sldId id="{255 + i}" r:id="rId{i}"/>')
+            z.writestr(
+                "ppt/presentation.xml",
+                '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+                '<p:presentation xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" '
+                'xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" '
+                'xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main">'
+                '<p:sldMasterIdLst/>'
+                f'<p:sldIdLst>{"".join(sld_ids)}</p:sldIdLst>'
+                '<p:sldSz cx="9144000" cy="6858000"/>'
+                '</p:presentation>',
+            )
+            for i, (stitle, sbullets) in enumerate(slides_data, start=1):
+                esc_title = html.escape(stitle)
+                body_paras = []
+                for b in sbullets:
+                    esc_b = html.escape(b)
+                    body_paras.append(f'<a:p><a:r><a:rPr sz="1800"/><a:t>{esc_b}</a:t></a:r></a:p>')
+                slide_xml = (
+                    '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+                    '<p:sld xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" '
+                    'xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" '
+                    'xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main">'
+                    '<p:cSld><p:spTree>'
+                    '<p:nvGrpSpPr><p:cNvPr id="1" name=""/><p:cNvGrpSpPr/><p:grpSpPr/></p:nvGrpSpPr>'
+                    '<p:grpSpPr/>'
+                    '<p:sp>'
+                    '<p:nvSpPr><p:cNvPr id="2" name="Title"/><p:cNvSpPr><a:spLocks noGrp="1"/></p:cNvSpPr><p:nvPr/></p:nvSpPr>'
+                    '<p:spPr><a:xfrm><a:off x="685800" y="609600"/><a:ext cx="7772400" cy="1143000"/></a:xfrm></p:spPr>'
+                    f'<p:txBody><a:bodyPr/><a:p><a:r><a:rPr sz="3200" b="1"/><a:t>{esc_title}</a:t></a:r></a:p></p:txBody>'
+                    '</p:sp>'
+                    '<p:sp>'
+                    '<p:nvSpPr><p:cNvPr id="3" name="Body"/><p:cNvSpPr><a:spLocks noGrp="1"/></p:cNvSpPr><p:nvPr/></p:nvSpPr>'
+                    '<p:spPr><a:xfrm><a:off x="685800" y="1981200"/><a:ext cx="7772400" cy="4267200"/></a:xfrm></p:spPr>'
+                    f'<p:txBody><a:bodyPr/>{"".join(body_paras)}</p:txBody>'
+                    '</p:sp>'
+                    '</p:spTree></p:cSld></p:sld>'
+                )
+                z.writestr(f"ppt/slides/slide{i}.xml", slide_xml)
+
+        target_path.write_bytes(buf.getvalue())
+        return target_path
+
+    def write_xlsx(self, content: DocumentContent, target_path: Path) -> Path:
+        """Pure-Python OpenXML Excel .xlsx spreadsheet generator."""
+        buf = io.BytesIO()
+
+        rows_data: List[List[str]] = []
+        if content.tables:
+            for tbl in content.tables:
+                rows_data.extend(tbl)
+        else:
+            if content.title:
+                rows_data.append([content.title])
+            for p in content.paragraphs:
+                rows_data.append([p])
+
+        def _col_name(c: int) -> str:
+            res = []
+            while c >= 0:
+                res.append(chr(ord("A") + (c % 26)))
+                c = (c // 26) - 1
+            return "".join(reversed(res))
+
+        sheet_rows = []
+        for r_idx, row in enumerate(rows_data, start=1):
+            cell_xmls = []
+            for c_idx, val in enumerate(row):
+                c_name = f"{_col_name(c_idx)}{r_idx}"
+                esc_val = html.escape(str(val))
+                cell_xmls.append(
+                    f'<c r="{c_name}" t="inlineStr"><is><t>{esc_val}</t></is></c>'
+                )
+            sheet_rows.append(f'<row r="{r_idx}">{"".join(cell_xmls)}</row>')
+
+        with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as z:
+            z.writestr(
+                "[Content_Types].xml",
+                '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+                '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">'
+                '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>'
+                '<Default Extension="xml" ContentType="application/xml"/>'
+                '<Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>'
+                '<Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>'
+                '</Types>',
+            )
+            z.writestr(
+                "_rels/.rels",
+                '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+                '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
+                '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/>'
+                '</Relationships>',
+            )
+            z.writestr(
+                "xl/_rels/workbook.xml.rels",
+                '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+                '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
+                '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/>'
+                '</Relationships>',
+            )
+            z.writestr(
+                "xl/workbook.xml",
+                '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+                '<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">'
+                '<sheets><sheet name="Sheet1" sheetId="1" r:id="rId1"/></sheets>'
+                '</workbook>',
+            )
+            z.writestr(
+                "xl/worksheets/sheet1.xml",
+                '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+                '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'
+                f'<sheetData>{"".join(sheet_rows)}</sheetData>'
+                '</worksheet>',
+            )
+
+        target_path.write_bytes(buf.getvalue())
+        return target_path
+
     def write_pdf(self, content: DocumentContent, target_path: Path) -> Path:
         """Pure-Python PDF 1.4 document generator with text wrapping & pagination."""
         def esc_pdf(s: str) -> str:
@@ -601,29 +905,38 @@ class DocumentConverter:
         source: str | Path,
         target_format: Optional[str] = None,
         output_path: Optional[str | Path] = None,
+        output_dir: Optional[str | Path] = None,
     ) -> Path:
         """Converts any document to any document.
 
-        If output_path is not specified, uses the exact same file name in the
-        same directory with the target extension (e.g., hari.pdf -> hari.docx).
+        - If source is a full path (e.g. C:\\docs\\report.pptx) and target_format='docx',
+          outputs directly to C:\\docs\\report.docx (same name, same directory).
+        - If output_dir is given, places the converted file with the same stem in that directory.
+        - If output_path is given, uses that exact path or directory.
         """
         src = Path(source).expanduser().resolve()
         if not src.is_file():
             raise FileNotFoundError(f"Source file not found: {src}")
 
+        clean_fmt = target_format.lower().lstrip(".") if target_format else None
+
         if output_path is not None:
             dest = Path(output_path).expanduser().resolve()
-        elif target_format is not None:
-            clean_fmt = target_format.lower().lstrip(".")
-            # EXACT SAME NAME with target extension!
+            if dest.is_dir() or str(output_path).endswith(("/", "\\")):
+                dest.mkdir(parents=True, exist_ok=True)
+                fmt = clean_fmt or src.suffix.lstrip(".") or "txt"
+                dest = dest / f"{src.stem}.{fmt}"
+        elif output_dir is not None:
+            od = Path(output_dir).expanduser().resolve()
+            od.mkdir(parents=True, exist_ok=True)
+            fmt = clean_fmt or "txt"
+            dest = od / f"{src.stem}.{fmt}"
+        elif clean_fmt is not None:
             dest = src.with_suffix("." + clean_fmt)
         else:
-            raise ValueError("Either target_format (e.g. 'docx', 'pdf', 'txt') or output_path must be provided.")
+            raise ValueError("Either target_format (e.g. 'docx', 'pptx', 'xlsx', 'pdf', 'txt') or output_path must be provided.")
 
-        # Read source content
         content = self.read(src)
-
-        # Write to destination format
         return self.write(content, dest)
 
 
@@ -631,6 +944,8 @@ def convert_document(
     source: str | Path,
     target_format: Optional[str] = None,
     output_path: Optional[str | Path] = None,
+    output_dir: Optional[str | Path] = None,
 ) -> Path:
     """Helper entry point for document conversion."""
-    return DocumentConverter().convert(source, target_format, output_path)
+    return DocumentConverter().convert(source, target_format, output_path, output_dir=output_dir)
+

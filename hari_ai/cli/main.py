@@ -413,17 +413,22 @@ def cmd_convert(args: List[str], *, emit=print) -> None:
 
     Usage:
         hari convert input.pdf docx
-        hari convert input.docx pdf
-        hari convert input.pdf -o output.txt
+        hari convert input.pptx docx
+        hari convert data.csv xlsx
+        hari convert "C:\\path\\to\\document.pptx" pdf
+        hari convert input.pdf --dir "D:\\output_folder"
+        hari convert input.pdf -o custom_output.txt
     """
     if not args:
-        emit("Usage: hari convert <input_file> [target_format_or_output_path] [--to format] [-o output]")
-        emit("Supported formats: pdf, docx, txt, md, html, json, csv, tsv, rtf")
+        emit("Usage: hari convert <input_file_or_full_path> [target_format_or_output_path] [--to format] [-o output] [--dir folder]")
+        emit("Supported formats: pdf, docx, pptx, ppt, xlsx, xls, txt, md, html, json, csv, tsv, rtf")
+        emit("Note: When a full path is provided, the converted file is created directly in that same directory.")
         return
 
     source = args[0]
     target_format = None
     output_path = None
+    output_dir = None
 
     idx = 1
     while idx < len(args):
@@ -433,6 +438,9 @@ def cmd_convert(args: List[str], *, emit=print) -> None:
             idx += 2
         elif arg in ("-o", "--output") and idx + 1 < len(args):
             output_path = args[idx + 1]
+            idx += 2
+        elif arg in ("-d", "--dir") and idx + 1 < len(args):
+            output_dir = args[idx + 1]
             idx += 2
         elif target_format is None and not arg.startswith("-"):
             if "." in arg:
@@ -445,7 +453,7 @@ def cmd_convert(args: List[str], *, emit=print) -> None:
 
     try:
         from hari_ai.tools.converter import convert_document
-        dest = convert_document(source, target_format, output_path)
+        dest = convert_document(source, target_format, output_path, output_dir=output_dir)
         emit(f"✓ Converted '{source}' -> '{dest}' ({dest.stat().st_size:,} bytes)")
     except Exception as exc:
         emit(f"Conversion error: {exc}")
@@ -494,6 +502,27 @@ def cmd_mcp(args: List[str], *, emit=print) -> None:
             emit(f"  ✓ Connected to '{srv}': {count} tools discovered.")
     else:
         emit("Usage: hari mcp list | add <name> <command> [args...] | connect")
+
+
+def cmd_autonomous(args: List[str] | str, *, emit=print) -> None:
+    """Hands-free autonomous computer control mode.
+
+    Tri-level architecture:
+      - System 1: Open-JEV & Sub-Millisecond Input Execution
+      - System 2: HariAI Deliberate Thinking
+      - System 3: Open Web & Web Search Fallback
+    Displays floating 'Take over' pill & purple screen edge glow.
+    """
+    goal = " ".join(args) if isinstance(args, list) else str(args)
+    if not goal.strip():
+        emit("Usage: hari autonomous \"<goal>\"  (e.g., hari autonomous \"Open browser and search PyPI\")")
+        emit("Safety: Click 'Take over' on the floating pill or hit <Esc> anytime to regain control.")
+        return
+
+    from hari_ai.agent.autonomous import AutonomousAgent
+    agent = AutonomousAgent()
+    res = agent.run(goal, emit=emit)
+    emit(f"\nAutonomous result: {res.status} ({res.total_steps} steps)")
 
 
 def repl() -> None:
@@ -583,6 +612,11 @@ def repl() -> None:
         elif lower.startswith('/mcp') or lower.startswith('mcp'):
             parts = shlex.split(user_input, posix=False)
             cmd_mcp(parts[1:] if len(parts) > 1 else [])
+        elif lower.startswith('/autonomous ') or lower.startswith('autonomous ') or lower.startswith('/auto ') or lower.startswith('auto '):
+            p = user_input.split(' ', 1)[1]
+            cmd_autonomous(p)
+        elif lower in ['/autonomous', 'autonomous', '/auto', 'auto']:
+            cmd_autonomous('')
         elif lower.startswith("/ask ") or lower.startswith("ask "):
             p = user_input.split(" ", 1)[1]
             cmd_ask(p, stream=True)
@@ -606,7 +640,8 @@ def dashboard_command(command: str, argument: str, *, emit=None) -> str:
     lines = []
     if command in ('/help', '/?'):
         return ('/ask <message>      Chat with the selected model\n'
-                '/convert <f> [fmt]  Convert documents (PDF, Word, TXT, MD, HTML, CSV)\n'
+                '/convert <f> [fmt]  Convert documents (PDF, Word, PPTX, Excel, TXT, MD, HTML)\n'
+                '/autonomous <goal>  Hands-free autonomous computer control mode\n'
                 '/tools              List autonomous and MCP tools\n'
                 '/mcp [list|add]     Model Context Protocol integrations\n'
                 '/swarm <topic>      Multi-bot debate & collaborative consensus\n'
@@ -636,7 +671,14 @@ def dashboard_command(command: str, argument: str, *, emit=None) -> str:
                 'Enter: send · Up/Down: input history · Esc: stop reply\n'
                 'F2: show/hide panels · Ctrl+L: new chat · Ctrl+Q: quit')
     no_args = {'/status': cmd_status, '/info': cmd_info, '/version': cmd_version, '/tools': cmd_tools}
-    text_args = {'/search': cmd_search, '/decide': cmd_decide, '/check-operation': cmd_operation, '/swarm': cmd_swarm}
+    text_args = {
+        '/search': cmd_search,
+        '/decide': cmd_decide,
+        '/check-operation': cmd_operation,
+        '/swarm': cmd_swarm,
+        '/autonomous': cmd_autonomous,
+        '/auto': cmd_autonomous,
+    }
     list_args = {'/settings': cmd_settings, '/memory': cmd_memory, '/dream': cmd_dream, '/convert': cmd_convert, '/mcp': cmd_mcp}
     if command in ('/mahakal', '/shiva'):
         return ("✦ Om Namah Shivaya ✦\n"
@@ -731,6 +773,8 @@ def main():
         cmd_settings(all_args)
     elif cmd in ("convert", "doc-convert"):
         cmd_convert(all_args)
+    elif cmd in ("autonomous", "auto"):
+        cmd_autonomous(" ".join(all_args))
     elif cmd in ('agent', 'tools', 'mcp'):
         argument = ' '.join(all_args)
         if cmd == "tools" and not all_args:

@@ -80,6 +80,57 @@ class TestDocumentConverter(unittest.TestCase):
         self.assertEqual(res, custom_out)
         self.assertTrue(custom_out.is_file())
 
+    def test_pptx_generation_and_reading(self):
+        md = self.dir / "presentation.md"
+        md.write_text("# Deep Learning Insights\n\nSlide 1 text.\n\nSlide 2 points.\n", encoding="utf-8")
+
+        pptx = convert_document(md, "pptx")
+        self.assertEqual(pptx.name, "presentation.pptx")
+        self.assertTrue(pptx.is_file())
+        self.assertGreater(pptx.stat().st_size, 0)
+
+        # Read back PPTX
+        conv = DocumentConverter()
+        content = conv.read_pptx(pptx)
+        self.assertIn("Deep Learning Insights", content.title)
+        self.assertTrue(any("Slide 1" in p for p in content.paragraphs))
+
+    def test_xlsx_generation_and_reading(self):
+        csv_file = self.dir / "metrics.csv"
+        csv_file.write_text("Epoch,Loss,Accuracy\n1,0.42,88%\n2,0.21,95%\n", encoding="utf-8")
+
+        xlsx = convert_document(csv_file, "xlsx")
+        self.assertEqual(xlsx.name, "metrics.xlsx")
+        self.assertTrue(xlsx.is_file())
+        self.assertGreater(xlsx.stat().st_size, 0)
+
+        # Read back XLSX
+        conv = DocumentConverter()
+        content = conv.read_xlsx(xlsx)
+        self.assertTrue(content.tables)
+        self.assertEqual(content.tables[0][0], ["Epoch", "Loss", "Accuracy"])
+        self.assertEqual(content.tables[0][1], ["1", "0.42", "88%"])
+
+    def test_complete_path_and_output_dir(self):
+        nested_dir = self.dir / "deep" / "folder"
+        nested_dir.mkdir(parents=True, exist_ok=True)
+        full_path_file = (nested_dir / "full_path_doc.txt").resolve()
+        full_path_file.write_text("Full path test content", encoding="utf-8")
+
+        # 1. Without output path: output is created right in nested_dir
+        dest = convert_document(full_path_file, "docx")
+        self.assertEqual(dest.parent, nested_dir)
+        self.assertEqual(dest.name, "full_path_doc.docx")
+        self.assertTrue(dest.is_file())
+
+        # 2. With output_dir
+        other_dir = self.dir / "exported"
+        dest_in_dir = convert_document(full_path_file, "pdf", output_dir=other_dir)
+        self.assertEqual(dest_in_dir.parent, other_dir)
+        self.assertEqual(dest_in_dir.name, "full_path_doc.pdf")
+        self.assertTrue(dest_in_dir.is_file())
+
 
 if __name__ == "__main__":
     unittest.main()
+
