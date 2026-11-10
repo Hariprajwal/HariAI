@@ -29,7 +29,7 @@ from hari_ai.dream.controller import (
 from hari_ai.memory.hierarchy import EpisodicEntry, HierarchicalMemoryManager
 from hari_ai.profile.creator import get_creator_profile
 from hari_ai.runtime.chat import ChatEngine
-from hari_ai.runtime.hardware import detect_hardware
+from hari_ai.runtime.hardware import detect_hardware, is_google_colab, is_notebook_or_headless
 from hari_ai.search.engine import SearchEngine
 from hari_ai.memory.store import MemoryStore
 from hari_ai.runtime.settings import load_settings, save_settings, settings_path
@@ -67,6 +67,11 @@ def print_banner() -> None:
 
 def get_user_input() -> str:
     """Reads user input with a gray placeholder that vanishes on typing (like Ollama)."""
+    if is_google_colab() or not sys.stdin.isatty():
+        try:
+            return input("hari> ").strip()
+        except (EOFError, KeyboardInterrupt):
+            return "exit"
     try:
         from prompt_toolkit import prompt
         from prompt_toolkit.formatted_text import HTML
@@ -113,7 +118,7 @@ def cmd_mahakal(args: Optional[List[str] | str] = None, *, emit=print) -> None:
         if raw_mode in ("braille", "trinetra", "trishul", "mantra", "blocks"):
             mode = raw_mode
 
-    console = Console(color_system="truecolor")
+    console = Console(color_system="truecolor", force_terminal=True)
     panel = get_mahakal_panel(width=72, height_lines=14, mode=mode)
     console.print(panel)
 
@@ -563,6 +568,10 @@ _ACTIVE_OVERLAY = None
 def cmd_takeover(*, emit=print) -> None:
     """Explicitly launches the floating Takeover Pill window on screen."""
     global _ACTIVE_OVERLAY
+    if is_google_colab() or (not os.environ.get('DISPLAY') and sys.platform != 'win32'):
+        emit("✦ Notice: On-screen floating GUI controls require a desktop window manager.")
+        emit("  In Google Colab / headless environments, use 'hari autonomous <goal>' in silent mode.")
+        return
     from hari_ai.agent.overlay import TakeoverOverlay
     if _ACTIVE_OVERLAY and getattr(_ACTIVE_OVERLAY, 'is_active', False):
         emit("✦ Floating Takeover Window is already active on screen at top center.")
@@ -609,6 +618,9 @@ def repl() -> None:
         if lower in ["exit", "quit", "/exit", "/quit", ":q", "bye"]:
             sys.exit(0)
         elif lower in ["/dashboard", "dashboard", "/ui", "ui", "/grand", "grand"]:
+            if is_google_colab():
+                print("✦ Note: Google Colab does not support alternate screen TUI dashboards. Staying in optimized silent mode.\n")
+                continue
             return "switch_to_dashboard"
         elif lower in ["/silent", "silent"]:
             print("Already in silent terminal mode. Enter /grand to return to the full HariAI dashboard.\n")
@@ -800,10 +812,16 @@ def dashboard_command(command: str, argument: str, *, emit=None) -> str:
 
 def launch_chat(*, plain: bool = False) -> None:
     """Use the dashboard in a real terminal and keep redirected IO line-based."""
-    if plain or not (sys.stdin.isatty() and sys.stdout.isatty()) or os.environ.get('TERM') == 'dumb':
+    if plain or is_notebook_or_headless() or os.environ.get('HARIAI_SILENT') == '1':
+        if is_google_colab():
+            print("✦ Google Colab detected: Running in optimized silent terminal mode.")
         res = repl()
         if res == "switch_to_dashboard":
-            launch_chat(plain=False)
+            if is_google_colab():
+                print("✦ Note: Google Colab does not support alternate screen TUI dashboards. Staying in optimized silent mode.")
+                repl()
+            else:
+                launch_chat(plain=False)
         return
     try:
         from hari_ai.cli.dashboard import HariDashboard
@@ -837,6 +855,8 @@ def main():
     parser.add_argument('--silent', action='store_true', help='Use the minimal line-based terminal interface (Ollama-style)')
 
     parsed, unknown = parser.parse_known_args()
+    if is_google_colab():
+        parsed.silent = True
     cmd = parsed.command.lower()
     all_args = parsed.args + unknown
 

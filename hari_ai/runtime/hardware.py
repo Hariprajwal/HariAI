@@ -124,3 +124,38 @@ def detect_hardware(refresh: bool = False) -> HardwareProfile:
     )
     _CACHED_PROFILE = profile
     return profile
+
+
+def is_google_colab() -> bool:
+    """Detect if running inside Google Colab environment."""
+    if "google.colab" in sys.modules:
+        return True
+    if any(k in os.environ for k in ("COLAB_RELEASE_TAG", "COLAB_GPU", "COLAB_BACKEND_VERSION", "GCS_READ_CACHE")):
+        return True
+    try:
+        import google.colab  # noqa: F401
+        return True
+    except ImportError:
+        pass
+    return False
+
+
+def is_notebook_or_headless() -> bool:
+    """Detect Jupyter notebooks, Colab, or non-interactive headless sessions."""
+    if is_google_colab():
+        return True
+    if not (sys.stdin.isatty() and sys.stdout.isatty()):
+        return True
+    if os.environ.get("TERM") in ("dumb", "unknown"):
+        return True
+    try:
+        import IPython
+        app = IPython.get_ipython()
+        if app is not None:
+            name = app.__class__.__name__
+            if name in ("ZMQInteractiveShell", "Shell", "GoogleColabShell"):
+                return True
+    except (ImportError, Exception):
+        pass
+    return False
+

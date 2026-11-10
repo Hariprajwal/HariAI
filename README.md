@@ -35,6 +35,15 @@ hari
 ```
 *(or `hari run`)*
 
+### ☁️ Google Colab & Jupyter Notebooks
+HariAI automatically detects Google Colab, Kaggle, and Jupyter notebook kernels:
+* **Zero UI Glitches**: Automatically switches to optimized silent/line REPL mode so notebook cell outputs stream cleanly without alternate-screen TUI buffer errors.
+* **Safe Input Handling**: Bypasses terminal raw-mode conflicts in IPython event loops.
+```bash
+!pip install hari-ai
+!hari ask "Hello from Google Colab!"
+```
+
 ---
 
 ## 🖥️ Live Terminal Dashboard
