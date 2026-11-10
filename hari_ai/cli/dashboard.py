@@ -120,7 +120,7 @@ class CreatorCard(Static):
                     ('About', profile.professional_identity),
                     ('Inspiration', profile.spiritual_inspiration),
                     ('Motto', profile.personal_motto), ('GitHub', profile.github_url))
-        mahakal_art = get_mahakal_text(width=16, height_lines=8, bg_hex='#0c0912')
+        mahakal_art = get_mahakal_text(width=18, height_lines=8, bg_hex='#0c0912')
         card = Table.grid(padding=(0, 2), expand=False)
         card.add_column()
         card.add_column()
@@ -202,6 +202,8 @@ class HariDashboard(App):
                 with Vertical(id='quick-commands', classes='panel'):
                     yield Static('Quick Commands', classes='panel-heading')
                     yield Button('/status     Live system details', id='quick-status')
+                    yield Button('/convert    Document converter', id='quick-convert')
+                    yield Button('/tools      Autonomous & MCP', id='quick-tools')
                     yield Button('/swarm      Multi-bot debate', id='quick-swarm')
                     yield Button('/silent     Minimal terminal', id='quick-silent')
                     yield Button('/dream      Sleep consolidation', id='quick-dream')
@@ -272,7 +274,7 @@ class HariDashboard(App):
         for label, enabled in [('Conversation & explanations', state.model_available),
                                ('Code generation (unverified)', state.model_available),
                                ('Explicit local memory', True), ('Web search via /search', True),
-                               ('Automatic training', False), ('Autonomous tool execution', False)]:
+                               ('Automatic training', False), ('Autonomous tool execution', True)]:
             capabilities.append('✓ ' if enabled else '○ ', GREEN if enabled else DIM)
             capabilities.append(label + '\n', '' if enabled else DIM)
         capabilities.append(f'Context: {state.turns} turns · {state.working_items} memory items\n', DIM)
@@ -293,8 +295,9 @@ class HariDashboard(App):
         }
         cluster_rows = rows(
             ('Session', swarm_status['session']), ('Workers', swarm_status['workers']),
-            ('Activity', swarm_status['activity']), ('Mode', swarm_status['mode']))
-        mahakal_cluster = get_mahakal_text(width=10, height_lines=4, bg_hex='#0c0912')
+            ('Activity', swarm_status['activity']), ('Mode', swarm_status['mode']),
+            ('Swarm', 'Consensus Active'))
+        mahakal_cluster = get_mahakal_text(width=14, height_lines=5, bg_hex='#0c0912')
         cluster_grid = Table.grid(padding=(0, 1), expand=False)
         cluster_grid.add_column()
         cluster_grid.add_column()

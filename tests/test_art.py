@@ -4,7 +4,7 @@ from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
 
-from hari_ai.cli.art import find_mahakal_path, get_mahakal_text, get_mahakal_panel
+from hari_ai.cli.art import find_mahakal_path, get_mahakal_text, get_mahakal_panel, get_mahakal_ascii
 from hari_ai.cli.dashboard import CreatorCard
 
 
@@ -15,7 +15,12 @@ class TestMahakalArt(unittest.TestCase):
         self.assertTrue(path.is_file())
 
     def test_get_mahakal_text_cluster_size(self):
-        art = get_mahakal_text(width=10, height_lines=4, bg_hex="#0c0912")
+        art = get_mahakal_text(width=14, height_lines=5, bg_hex="#0c0912")
+        self.assertIsInstance(art, Text)
+        self.assertGreater(len(art.plain), 0)
+
+    def test_get_mahakal_ascii(self):
+        art = get_mahakal_ascii(width=14, height=5)
         self.assertIsInstance(art, Text)
         self.assertGreater(len(art.plain), 0)
 

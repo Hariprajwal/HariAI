@@ -2,9 +2,8 @@
 
 Uses Pillow + Rich 24-bit TrueColor terminal graphics (Unicode half-blocks).
 """
-
 from pathlib import Path
-from PIL import Image, ImageOps
+from PIL import Image, ImageOps, ImageEnhance
 from rich.console import Console
 from rich.panel import Panel
 from rich.style import Style
@@ -20,18 +19,21 @@ if not IMAGE_PATH.is_file():
 WIDTH = 72
 HEIGHT = 24
 
-# Load Mahakal image
-img = Image.open(IMAGE_PATH).convert("RGBA")
+# Load Mahakal image and enhance contrast & highlights for crisp terminal rendering
+img = Image.open(IMAGE_PATH).convert("RGB")
+enh = ImageEnhance.Contrast(img).enhance(2.2)
+sharp = ImageEnhance.Sharpness(enh).enhance(2.5)
+bright = ImageEnhance.Brightness(sharp).enhance(1.25)
 
 # Resize while preserving proportions
-img = ImageOps.contain(img, (WIDTH, HEIGHT))
+img_resized = ImageOps.contain(bright, (WIDTH, HEIGHT), method=Image.Resampling.LANCZOS)
 
 # Dark background
-canvas = Image.new("RGBA", (WIDTH, HEIGHT), "#0c0911")
-x = (WIDTH - img.width) // 2
-y = (HEIGHT - img.height) // 2
-canvas.alpha_composite(img, (x, y))
-pixels = canvas.convert("RGB")
+canvas = Image.new("RGB", (WIDTH, HEIGHT), (12, 9, 17))
+x = (WIDTH - img_resized.width) // 2
+y = (HEIGHT - img_resized.height) // 2
+canvas.paste(img_resized, (x, y))
+pixels = canvas
 
 output = Text()
 
@@ -57,4 +59,3 @@ panel = Panel(
 
 if __name__ == "__main__":
     console.print(panel)
-

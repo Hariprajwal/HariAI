@@ -30,8 +30,8 @@ HOTKEYS = frozenset({
 })
 _ACTION_FIELDS = {
     "click": {"box"}, "right_click": {"box"}, "double_click": {"box"},
-    "hover": {"box"}, "type": {"box", "text"}, "press": {"key"},
-    "hotkey": {"keys"}, "scroll": {"box", "amount"}, "wait": {"milliseconds"},
+    "hover": {"box"}, "type": {"box", "text"}, "press": {"box", "key"},
+    "hotkey": {"box", "keys"}, "scroll": {"box", "amount"}, "wait": {"milliseconds"},
 }
 
 
@@ -208,6 +208,39 @@ class DesktopDriver:
     fallback actions. The controller owns the run lifecycle and user approval.
     """
 
+    def select_region(self) -> Region | None:
+        """Explicit drag selection on the primary monitor; never auto-fullscreen."""
+        import tkinter as tk
+        chosen = []
+        start = []
+        window = tk.Tk()
+        window.attributes('-fullscreen', True)
+        window.attributes('-alpha', 0.35)
+        window.attributes('-topmost', True)
+        canvas = tk.Canvas(window, background='#180c27', cursor='crosshair', highlightthickness=0)
+        canvas.pack(fill='both', expand=True)
+        canvas.create_text(30, 30, anchor='nw', fill='white',
+                           text='HariAI: drag over the target application. Esc cancels.', font=('Segoe UI', 16))
+        rectangle = canvas.create_rectangle(0, 0, 0, 0, outline='#c17aff', width=3)
+        def press(event):
+            start[:] = [event.x, event.y]
+        def drag(event):
+            if start:
+                canvas.coords(rectangle, *start, event.x, event.y)
+        def release(event):
+            if start:
+                left, top = min(start[0], event.x), min(start[1], event.y)
+                width, height = abs(event.x - start[0]), abs(event.y - start[1])
+                if width >= 10 and height >= 10:
+                    chosen.append(Region(left, top, width, height))
+                    window.destroy()
+        canvas.bind('<ButtonPress-1>', press)
+        canvas.bind('<B1-Motion>', drag)
+        canvas.bind('<ButtonRelease-1>', release)
+        window.bind('<Escape>', lambda _: window.destroy())
+        window.mainloop()
+        return chosen[0] if chosen else None
+
     def capture(self, region: Region) -> Observation:
         region = Region(region.left, region.top, region.width, region.height)
         try:
@@ -273,8 +306,10 @@ class DesktopDriver:
                 effect(gui.moveTo, *target)
                 effect(gui.scroll, args["amount"])
             elif action.kind == "press":
+                effect(gui.click, *target, button="left")
                 effect(gui.press, args["key"])
             elif action.kind == "hotkey":
+                effect(gui.click, *target, button="left")
                 effect(gui.hotkey, *args["keys"])
             elif action.kind == "type":
                 clipboard = _load_dependency("pyperclip")

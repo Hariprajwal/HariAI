@@ -53,6 +53,8 @@ _MEMORY_MANAGER = HierarchicalMemoryManager()
 _DREAM_CONTROLLER = DreamEngineController(memory_manager=_MEMORY_MANAGER)
 _SEARCH_ENGINE = SearchEngine(memory_manager=_MEMORY_MANAGER)
 _CHAT_ENGINE = ChatEngine(memory_manager=_MEMORY_MANAGER)
+_DESKTOP_AGENT = None
+_TOOL_AGENT = None
 _SWARM_ENGINE = MultiHariSwarm(llm_engine=_CHAT_ENGINE)
 
 
@@ -406,6 +408,94 @@ def cmd_swarm(topic: str, *, emit=print) -> None:
     emit("✦ Swarm consensus reached across all bot nodes.\n")
 
 
+def cmd_convert(args: List[str], *, emit=print) -> None:
+    """Converts any document to any document format.
+
+    Usage:
+        hari convert input.pdf docx
+        hari convert input.docx pdf
+        hari convert input.pdf -o output.txt
+    """
+    if not args:
+        emit("Usage: hari convert <input_file> [target_format_or_output_path] [--to format] [-o output]")
+        emit("Supported formats: pdf, docx, txt, md, html, json, csv, tsv, rtf")
+        return
+
+    source = args[0]
+    target_format = None
+    output_path = None
+
+    idx = 1
+    while idx < len(args):
+        arg = args[idx]
+        if arg in ("--to", "-t") and idx + 1 < len(args):
+            target_format = args[idx + 1]
+            idx += 2
+        elif arg in ("-o", "--output") and idx + 1 < len(args):
+            output_path = args[idx + 1]
+            idx += 2
+        elif target_format is None and not arg.startswith("-"):
+            if "." in arg:
+                output_path = arg
+            else:
+                target_format = arg
+            idx += 1
+        else:
+            idx += 1
+
+    try:
+        from hari_ai.tools.converter import convert_document
+        dest = convert_document(source, target_format, output_path)
+        emit(f"✓ Converted '{source}' -> '{dest}' ({dest.stat().st_size:,} bytes)")
+    except Exception as exc:
+        emit(f"Conversion error: {exc}")
+
+
+def cmd_tools(*, emit=print) -> None:
+    """List available autonomous and MCP tools."""
+    from hari_ai.tools.registry import default_registry
+    tools = default_registry.list_tools()
+    emit("\n--- HariAI Autonomous & MCP Tools ---")
+    for t in tools:
+        source_label = f"[{t.server_name}]" if t.server_name else "[built-in]"
+        emit(f"  • {t.name:<24} {source_label:<12} {t.description[:60]}...")
+    emit("-------------------------------------\n")
+
+
+def cmd_mcp(args: List[str], *, emit=print) -> None:
+    """Manage and inspect Model Context Protocol (MCP) servers."""
+    from hari_ai.tools.mcp_client import load_mcp_config, save_mcp_config, MCPServerConfig
+    from hari_ai.tools.registry import default_registry
+
+    sub = args[0].lower() if args else "list"
+    if sub == "list":
+        configs = load_mcp_config()
+        emit("\n--- HariAI Configured MCP Servers ---")
+        if not configs:
+            emit("  No MCP servers configured yet. Add one with: hari mcp add <name> <command> [args...]")
+        for name, conf in configs.items():
+            status = "enabled" if conf.enabled else "disabled"
+            emit(f"  • {name} ({status}): {conf.command} {' '.join(conf.args)}")
+        emit("-------------------------------------\n")
+    elif sub == "add" and len(args) >= 3:
+        name = args[1]
+        command = args[2]
+        cmd_args = args[3:]
+        configs = load_mcp_config()
+        configs[name] = MCPServerConfig(name=name, command=command, args=cmd_args)
+        save_mcp_config(configs)
+        emit(f"✓ Added MCP server '{name}': {command} {' '.join(cmd_args)}")
+    elif sub == "connect":
+        emit("Connecting to configured MCP servers...")
+        res = default_registry.connect_mcp_servers()
+        if not res:
+            emit("No MCP servers connected or no tools discovered.")
+        for srv, count in res.items():
+            emit(f"  ✓ Connected to '{srv}': {count} tools discovered.")
+    else:
+        emit("Usage: hari mcp list | add <name> <command> [args...] | connect")
+
+
 def repl() -> None:
     """Interactive conversational REPL with Ollama-style vanishing placeholder."""
     _DREAM_CONTROLLER.start_auto_dreamer()
@@ -485,6 +575,14 @@ def repl() -> None:
         elif lower.startswith('/settings') or lower.startswith('settings'):
             parts = user_input.split()
             cmd_settings(parts[1:])
+        elif lower.startswith('/convert ') or lower.startswith('convert '):
+            parts = shlex.split(user_input.split(' ', 1)[1], posix=False)
+            cmd_convert(parts)
+        elif lower in ['/tools', 'tools']:
+            cmd_tools()
+        elif lower.startswith('/mcp') or lower.startswith('mcp'):
+            parts = shlex.split(user_input, posix=False)
+            cmd_mcp(parts[1:] if len(parts) > 1 else [])
         elif lower.startswith("/ask ") or lower.startswith("ask "):
             p = user_input.split(" ", 1)[1]
             cmd_ask(p, stream=True)
@@ -495,11 +593,22 @@ def repl() -> None:
             print()
 
 
-def dashboard_command(command: str, argument: str) -> str:
+def get_desktop_agent():
+    global _DESKTOP_AGENT
+    if _DESKTOP_AGENT is None:
+        from hari_ai.agent.controller import DesktopAgentController
+        _DESKTOP_AGENT = DesktopAgentController()
+    return _DESKTOP_AGENT
+
+
+def dashboard_command(command: str, argument: str, *, emit=None) -> str:
     """Capture command output explicitly, without redirecting the UI's stdout."""
     lines = []
     if command in ('/help', '/?'):
         return ('/ask <message>      Chat with the selected model\n'
+                '/convert <f> [fmt]  Convert documents (PDF, Word, TXT, MD, HTML, CSV)\n'
+                '/tools              List autonomous and MCP tools\n'
+                '/mcp [list|add]     Model Context Protocol integrations\n'
                 '/swarm <topic>      Multi-bot debate & collaborative consensus\n'
                 '/code <task>        Request code\n'
                 '/think <question>   Request careful reasoning\n'
@@ -526,9 +635,9 @@ def dashboard_command(command: str, argument: str) -> str:
                 '/exit               Exit HariAI\n\n'
                 'Enter: send · Up/Down: input history · Esc: stop reply\n'
                 'F2: show/hide panels · Ctrl+L: new chat · Ctrl+Q: quit')
-    no_args = {'/status': cmd_status, '/info': cmd_info, '/version': cmd_version}
+    no_args = {'/status': cmd_status, '/info': cmd_info, '/version': cmd_version, '/tools': cmd_tools}
     text_args = {'/search': cmd_search, '/decide': cmd_decide, '/check-operation': cmd_operation, '/swarm': cmd_swarm}
-    list_args = {'/settings': cmd_settings, '/memory': cmd_memory, '/dream': cmd_dream}
+    list_args = {'/settings': cmd_settings, '/memory': cmd_memory, '/dream': cmd_dream, '/convert': cmd_convert, '/mcp': cmd_mcp}
     if command in ('/mahakal', '/shiva'):
         return ("✦ Om Namah Shivaya ✦\n"
                 "Mahakaal: The Eternal, Timeless Protector & Spiritual Inspiration of HariAI.\n"
@@ -564,7 +673,8 @@ def launch_chat(*, plain: bool = False) -> None:
 
     _DREAM_CONTROLLER.start_auto_dreamer()
     while True:
-        app = HariDashboard(lambda: _CHAT_ENGINE, _DREAM_CONTROLLER, dashboard_command, swarm=_SWARM_ENGINE)
+        app = HariDashboard(lambda: _CHAT_ENGINE, _DREAM_CONTROLLER, dashboard_command, swarm=_SWARM_ENGINE,
+                            agent_getter=lambda: _DESKTOP_AGENT, tool_getter=lambda: _TOOL_AGENT)
         app.run()
         if getattr(app, 'switch_to_silent', False) is True:
             res = repl()
@@ -619,6 +729,21 @@ def main():
         cmd_dream(all_args)
     elif cmd == "settings":
         cmd_settings(all_args)
+    elif cmd in ("convert", "doc-convert"):
+        cmd_convert(all_args)
+    elif cmd in ('agent', 'tools', 'mcp'):
+        argument = ' '.join(all_args)
+        if cmd == "tools" and not all_args:
+            cmd_tools()
+        elif cmd == "mcp":
+            cmd_mcp(all_args)
+        elif all_args and all_args[0] in ('run', 'approve', 'refresh', 'select', 'region'):
+            print(f'Open `hari run` and use `/{cmd} {argument}` in that interactive session.')
+        else:
+            try:
+                print(dashboard_command('/' + cmd, argument))
+            except (OSError, RuntimeError, ValueError) as exc:
+                print(f'{cmd}: {exc}')
     elif cmd in ["help", "-h", "--help"]:
         print("Usage: hari [run|ask|think|decide|check-operation|code|memory|dream|settings|status|info|version|help]")
         print('Interactive launch opens the live dashboard. Use `hari run --plain` for line-based chat.')

@@ -61,8 +61,8 @@ Coordinates are normalized to 0..1000 over the attached image: box=[left,top,rig
 Use these exact action arguments and no extra fields:
 click/right_click/double_click/hover: {"box":[left,top,right,bottom]}.
 type: {"box":[left,top,right,bottom],"text":"text"}; the visible input box is required.
-press: {"key":"enter|tab|escape|backspace|left|right|up|down|home|end|pageup|pagedown"}; choose one key.
-hotkey: {"keys":["ctrl","a"]}; allowed ctrl+a/c/v/x/z/y/f/l/r/t, ctrl+shift+z, ctrl+tab, ctrl+shift+tab, shift+tab, alt+left/right.
+press: {"box":[left,top,right,bottom],"key":"enter|tab|escape|backspace|left|right|up|down|home|end|pageup|pagedown"}; choose one key and the control to focus first.
+hotkey: {"box":[left,top,right,bottom],"keys":["ctrl","a"]}; focus the observed control first; allowed ctrl+a/c/v/x/z/y/f/l/r/t, ctrl+shift+z, ctrl+tab, ctrl+shift+tab, shift+tab, alt+left/right.
 scroll: {"box":[left,top,right,bottom],"amount":integer from -10 to 10}.
 wait: {"milliseconds":integer from 0 to 1000}.
 Use done=false with one action. Use done=true and action=null only when the latest screenshot visibly establishes that the user's goal is complete.

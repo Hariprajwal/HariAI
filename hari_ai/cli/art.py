@@ -1,7 +1,8 @@
 """Terminal artwork renderer for HariAI.
 
-Converts image assets into 24-bit TrueColor Unicode half-block characters (▀)
-for rendering directly inside Rich and Textual panels.
+Converts image assets into high-definition 24-bit TrueColor Unicode half-block
+characters (▀) and shaded purple ASCII art (.:-=+*#%@) for rendering directly
+inside Rich and Textual panels.
 """
 from __future__ import annotations
 
@@ -20,6 +21,20 @@ _MAHAKAL_PATHS = [
     Path(__file__).resolve().parents[2] / "mahakal.png",
 ]
 
+ASCII_CHARS = " .:-=+*#%@"
+PURPLE_PALETTE = [
+    "#201232",
+    "#341852",
+    "#4d1f7c",
+    "#6829a8",
+    "#8535d4",
+    "#a34ff4",
+    "#be73ff",
+    "#d59eff",
+    "#eac4ff",
+    "#ffffff",
+]
+
 
 def find_mahakal_path() -> Optional[Path]:
     """Locate mahakal.png in package assets or project directory."""
@@ -33,17 +48,26 @@ def find_mahakal_path() -> Optional[Path]:
 
 
 @functools.lru_cache(maxsize=32)
-def get_mahakal_text(width: int = 10, height_lines: int = 4, bg_hex: str = "#0c0912") -> Text:
-    """Render Mahakaal image as a Rich Text object using 24-bit half-blocks.
+def get_mahakal_text(
+    width: int = 14,
+    height_lines: int = 5,
+    bg_hex: str = "#0c0912",
+    mode: str = "blocks",
+) -> Text:
+    """Render Mahakaal image as a Rich Text object with crisp high contrast.
 
     Args:
         width: Number of character columns.
-        height_lines: Number of terminal character lines (each line represents 2 vertical pixels).
+        height_lines: Number of terminal character lines (for blocks, each line is 2 vertical pixels).
         bg_hex: Background color behind transparent / composite pixels.
+        mode: 'blocks' for 24-bit half-blocks or 'ascii' for shaded character art.
     """
+    if mode == "ascii":
+        return get_mahakal_ascii(width=width, height=height_lines)
+
     pixel_height = height_lines * 2
     try:
-        from PIL import Image, ImageOps
+        from PIL import Image, ImageOps, ImageEnhance
     except ImportError:
         return _fallback_text(width, height_lines)
 
@@ -52,24 +76,28 @@ def get_mahakal_text(width: int = 10, height_lines: int = 4, bg_hex: str = "#0c0
         return _fallback_text(width, height_lines)
 
     try:
-        img = Image.open(path).convert("RGBA")
-        img_resized = ImageOps.contain(img, (width, pixel_height))
+        img = Image.open(path).convert("RGB")
+        # Enhance contrast, sharpness, and brightness so fine contours (Trishul, moon) pop vibrantly
+        enh = ImageEnhance.Contrast(img).enhance(2.2)
+        sharp = ImageEnhance.Sharpness(enh).enhance(2.5)
+        boosted = ImageEnhance.Brightness(sharp).enhance(1.25)
+
+        img_resized = ImageOps.contain(boosted, (width, pixel_height), method=Image.Resampling.LANCZOS)
 
         # Parse background hex to RGB tuple
         bg_hex_clean = bg_hex.lstrip("#")
         bg_rgb = tuple(int(bg_hex_clean[i:i + 2], 16) for i in (0, 2, 4))
-        canvas = Image.new("RGBA", (width, pixel_height), (*bg_rgb, 255))
+        canvas = Image.new("RGB", (width, pixel_height), bg_rgb)
 
         x = max(0, (width - img_resized.width) // 2)
         y = max(0, (pixel_height - img_resized.height) // 2)
-        canvas.alpha_composite(img_resized, (x, y))
-        rgb = canvas.convert("RGB")
+        canvas.paste(img_resized, (x, y))
 
         out = Text()
         for r in range(0, pixel_height, 2):
             for c in range(width):
-                top = rgb.getpixel((c, r))
-                bot = rgb.getpixel((c, min(r + 1, pixel_height - 1)))
+                top = canvas.getpixel((c, r))
+                bot = canvas.getpixel((c, min(r + 1, pixel_height - 1)))
                 fg = "#{:02x}{:02x}{:02x}".format(*top)
                 bg = "#{:02x}{:02x}{:02x}".format(*bot)
                 out.append("▀", style=Style(color=fg, bgcolor=bg))
@@ -78,6 +106,44 @@ def get_mahakal_text(width: int = 10, height_lines: int = 4, bg_hex: str = "#0c0
         return out
     except Exception:
         return _fallback_text(width, height_lines)
+
+
+@functools.lru_cache(maxsize=32)
+def get_mahakal_ascii(width: int = 14, height: int = 5) -> Text:
+    """Renders Mahakaal using shaded purple ASCII character art."""
+    try:
+        from PIL import Image, ImageOps, ImageEnhance
+    except ImportError:
+        return _fallback_text(width, height)
+
+    path = find_mahakal_path()
+    if not path:
+        return _fallback_text(width, height)
+
+    try:
+        img = Image.open(path).convert("L")
+        enh = ImageEnhance.Contrast(img).enhance(2.2)
+        sharp = ImageEnhance.Sharpness(enh).enhance(2.5)
+        bright = ImageEnhance.Brightness(sharp).enhance(1.25)
+
+        img_resized = ImageOps.contain(bright, (width, height), method=Image.Resampling.LANCZOS)
+        canvas = Image.new("L", (width, height), 0)
+        x = max(0, (width - img_resized.width) // 2)
+        y = max(0, (height - img_resized.height) // 2)
+        canvas.paste(img_resized, (x, y))
+
+        out = Text()
+        for r in range(height):
+            for c in range(width):
+                b = canvas.getpixel((c, r))
+                char_idx = min(len(ASCII_CHARS) - 1, b * len(ASCII_CHARS) // 256)
+                color_idx = min(len(PURPLE_PALETTE) - 1, b * len(PURPLE_PALETTE) // 256)
+                out.append(ASCII_CHARS[char_idx], style=Style(color=PURPLE_PALETTE[color_idx]))
+            if r < height - 1:
+                out.append("\n")
+        return out
+    except Exception:
+        return _fallback_text(width, height)
 
 
 def _fallback_text(width: int, height_lines: int) -> Text:
@@ -89,8 +155,8 @@ def _fallback_text(width: int, height_lines: int) -> Text:
     return out
 
 
-def get_mahakal_panel(width: int = 64, height_lines: int = 14, border_style: str = "#b77bea") -> Panel:
-    """Creates a full-width Rich Panel enclosing Mahakaal graphic."""
+def get_mahakal_panel(width: int = 64, height_lines: int = 16, border_style: str = "#b77bea") -> Panel:
+    """Creates a full-width Rich Panel enclosing high-definition Mahakaal graphic."""
     text = get_mahakal_text(width=width, height_lines=height_lines, bg_hex="#0c0911")
     return Panel(
         text,
@@ -99,4 +165,3 @@ def get_mahakal_panel(width: int = 64, height_lines: int = 14, border_style: str
         padding=0,
         style="on #0c0911",
     )
-
