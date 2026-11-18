@@ -67,7 +67,11 @@ class LocalModel:
                 import llama_cpp
                 from llama_cpp import Llama
             except ImportError as exc:
-                raise RuntimeError('Install llama-cpp-python to run the local model.') from exc
+                raise RuntimeError(
+                    'Install llama-cpp-python to run the local GGUF model:\n'
+                    '  pip install llama-cpp-python --extra-index-url https://abetlen.github.io/llama-cpp-python/whl/cpu\n'
+                    'Or switch to Ollama: hari settings backend ollama'
+                ) from exc
             # The lightweight observer uses low-level sampling details verified
             # against the public logprob API for this exact version. Unknown
             # versions can still chat, but do not get an unverified score.
