@@ -115,7 +115,16 @@ class SessionStatus:
             device = getattr(local, 'device', 'CPU')
             threads = min(local.threads, os.cpu_count() or 1)
             context_tokens = local.context_size
-            readiness = 'Loaded' if loaded else ('Available · loads on first reply' if available else 'Model file missing')
+            from hari_ai.runtime.setup_engine import is_engine_installed
+            if not is_engine_installed():
+                readiness = 'Engine not installed · type /setup'
+                available = False
+            elif loaded:
+                readiness = 'Loaded'
+            elif available:
+                readiness = 'Available · loads on first reply'
+            else:
+                readiness = 'Model file missing'
         elif backend == 'nano':
             native = engine.engine
             configured_path = getattr(settings, 'nano_checkpoint', '')

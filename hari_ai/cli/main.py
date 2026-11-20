@@ -107,6 +107,18 @@ def cmd_info(*, emit=print) -> None:
     emit("=" * 60 + "\n")
 
 
+def cmd_setup(args: Optional[List[str] | str] = None, *, emit=print) -> None:
+    """Sets up the local GGUF inference engine automatically."""
+    from hari_ai.runtime.setup_engine import install_inference_engine
+    force_cpu = False
+    if args:
+        if isinstance(args, str):
+            force_cpu = '--cpu' in args.lower()
+        elif isinstance(args, list):
+            force_cpu = any('--cpu' in str(a).lower() for a in args)
+    install_inference_engine(force_cpu=force_cpu, emit=emit)
+
+
 def cmd_mahakal(args: Optional[List[str] | str] = None, *, emit=print) -> None:
     """Render the sacred Mahakaal terminal graphic inside purple panel."""
     from hari_ai.cli.art import get_mahakal_panel
@@ -698,6 +710,8 @@ def repl() -> None:
                     print(result)
             except (OSError, RuntimeError, ValueError) as exc:
                 print(f'Desktop agent: {exc}')
+        elif lower in ['/setup', 'setup', '/install-engine', 'install-engine']:
+            cmd_setup()
         elif lower in ['/takeover', 'takeover']:
             cmd_takeover()
         elif lower.startswith('/autonomous ') or lower.startswith('autonomous ') or lower.startswith('/auto ') or lower.startswith('auto '):
@@ -728,6 +742,7 @@ def dashboard_command(command: str, argument: str, *, emit=None) -> str:
     lines = []
     if command in ('/help', '/?'):
         return ('/ask <message>      Chat with the selected model\n'
+                '/setup              Auto-install prebuilt local GGUF engine (llama-cpp-python)\n'
                 '/convert <f> [fmt]  Convert documents (PDF, Word, PPTX, Excel, TXT, MD, HTML)\n'
                 '/autonomous <goal>  Hands-free autonomous computer control mode\n'
                 '/agent help         Configure local desktop automation\n'
@@ -780,6 +795,8 @@ def dashboard_command(command: str, argument: str, *, emit=None) -> str:
         return '' if emit else '\n'.join(lines).strip()
     no_args = {'/status': cmd_status, '/info': cmd_info, '/version': cmd_version, '/tools': cmd_tools, '/takeover': cmd_takeover}
     text_args = {
+        '/setup': cmd_setup,
+        '/install-engine': cmd_setup,
         '/search': cmd_search,
         '/decide': cmd_decide,
         '/check-operation': cmd_operation,
@@ -885,6 +902,8 @@ def main():
         cmd_search(" ".join(all_args))
     elif cmd == "info":
         cmd_info()
+    elif cmd in ["setup", "install-engine"]:
+        cmd_setup(all_args)
     elif cmd in ["version", "-v", "--version"]:
         cmd_version()
     elif cmd == 'status':
@@ -913,8 +932,9 @@ def main():
             except (OSError, RuntimeError, ValueError) as exc:
                 print(f'{cmd}: {exc}')
     elif cmd in ["help", "-h", "--help"]:
-        print("Usage: hari [run|ask|think|decide|check-operation|code|memory|dream|settings|status|info|version|help]")
+        print("Usage: hari [run|ask|think|decide|setup|code|memory|dream|settings|status|info|version|help]")
         print('Interactive launch opens the live dashboard. Use `hari run --plain` for line-based chat.')
+        print('Use `hari setup` to automatically install the prebuilt local GGUF engine.')
     else:
         # Default behavior: treat unknown arguments as direct interactive prompt
         full_query = " ".join([parsed.command] + all_args)

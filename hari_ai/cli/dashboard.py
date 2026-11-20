@@ -419,6 +419,8 @@ class HariDashboard(App):
         if request.lower() in ('/clear', 'clear'):
             await self.action_clear_chat()
             return
+        if request.lower() in ('/setup', 'setup', '/install-engine', 'install-engine'):
+            request = '/setup'
         self.dream.notify_user_activity()
         await self._add_turn('user', displayed_text)
         self.active_reply = await self._add_turn('assistant')
@@ -448,8 +450,8 @@ class HariDashboard(App):
             chat_commands = {'/ask': '', '/code': 'Write code for the following request. State any assumptions: ',
                              '/think': 'Please reason carefully about: '}
             if text.startswith('/') and command not in chat_commands:
-                if command in ('/auto', '/autonomous', '/agent', '/tools'):
-                    progress = lambda piece: self.post_message(ReplyPiece(piece))
+                if command in ('/auto', '/autonomous', '/agent', '/tools', '/setup', '/install-engine'):
+                    progress = lambda piece: self.post_message(ReplyPiece(piece + '\n' if not piece.endswith('\n') else piece))
                     result = self.command_handler(command, argument, emit=progress)
                 else:
                     result = self.command_handler(command, argument)
