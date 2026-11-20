@@ -173,18 +173,21 @@ def _show_confidence_status() -> None:
 
 def cmd_ask(prompt: str, stream: bool = False) -> None:
     """Conversational language query powered by the ChatEngine."""
-    if stream:
-        for chunk in _CHAT_ENGINE.chat_stream(prompt):
-            sys.stdout.write(chunk)
-            sys.stdout.flush()
-        sys.stdout.write("\n")
-    else:
-        response = "".join(list(_CHAT_ENGINE.chat_stream(prompt)))
-        print(response)
-    if (_CHAT_ENGINE.last_reply_succeeded and _CHAT_ENGINE.settings.backend == 'local'
-            and getattr(_CHAT_ENGINE.local_model, 'last_finish_reason', None) == 'length'):
-        print('Response reached the token limit and may be incomplete.')
-    _show_confidence_status()
+    try:
+        if stream:
+            for chunk in _CHAT_ENGINE.chat_stream(prompt):
+                sys.stdout.write(chunk)
+                sys.stdout.flush()
+            sys.stdout.write("\n")
+        else:
+            response = "".join(list(_CHAT_ENGINE.chat_stream(prompt)))
+            print(response)
+        if (_CHAT_ENGINE.last_reply_succeeded and _CHAT_ENGINE.settings.backend == 'local'
+                and getattr(_CHAT_ENGINE.local_model, 'last_finish_reason', None) == 'length'):
+            print('Response reached the token limit and may be incomplete.')
+        _show_confidence_status()
+    except (RuntimeError, ValueError, OSError) as exc:
+        print(f"\n{exc}\n")
 
 
 def cmd_think(prompt: str, llm: Optional[Any] = None) -> str:
