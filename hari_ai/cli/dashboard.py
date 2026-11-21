@@ -445,6 +445,24 @@ class HariDashboard(App):
         creator = False
         error = ''
         try:
+            # --- Auto-engine guard -------------------------------------------
+            # If the background install thread hasn't finished yet (or never ran
+            # on this platform), do a quick inline install before the first reply.
+            # This means zero manual steps for first-time users.
+            from hari_ai.runtime.setup_engine import is_engine_installed, ensure_engine_ready
+            if not is_engine_installed():
+                emit = lambda piece: self.post_message(ReplyPiece(piece + '\n' if not piece.endswith('\n') else piece))
+                emit('✦ Setting up local AI engine — this takes about 10–30 seconds on first launch...\n')
+                ensure_engine_ready(silent=False, emit=emit)
+                if not is_engine_installed():
+                    emit('\n⚠ Could not install the local engine automatically.\n')
+                    emit('  Run in your terminal:  pip install llama-cpp-python --prefer-binary '
+                         '--only-binary=llama-cpp-python '
+                         '--extra-index-url https://abetlen.github.io/llama-cpp-python/whl/cpu\n')
+                    self.post_message(TaskFinished(cancelled=False, error='Engine not installed', notes=[], creator=False))
+                    return
+                emit('\n✓ Engine ready! Answering your question now...\n\n')
+            # -----------------------------------------------------------------
             command, _, argument = text.partition(' ')
             command = command.lower()
             chat_commands = {'/ask': '', '/code': 'Write code for the following request. State any assumptions: ',

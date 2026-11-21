@@ -66,14 +66,29 @@ class LocalModel:
             try:
                 import llama_cpp
                 from llama_cpp import Llama
-            except ImportError as exc:
-                raise RuntimeError(
-                    'The local GGUF engine (llama-cpp-python) is not installed.\n'
-                    '  • Type /setup in chat to install it automatically\n'
-                    '  • Or in your terminal: hari setup\n'
-                    '  • Manual install: pip install llama-cpp-python --extra-index-url https://abetlen.github.io/llama-cpp-python/whl/cpu\n'
-                    '  • Or switch to Ollama: hari settings backend ollama'
-                ) from exc
+            except ImportError:
+                # Engine not installed — try to auto-install the prebuilt binary wheel now.
+                # This is a fallback; ensure_engine_ready() should have already handled it.
+                from hari_ai.runtime.setup_engine import install_inference_engine
+                ok = install_inference_engine(emit=print)
+                if not ok:
+                    raise RuntimeError(
+                        'The local GGUF engine (llama-cpp-python) could not be installed automatically.\n'
+                        '  Run manually: pip install llama-cpp-python --prefer-binary '
+                        '--only-binary=llama-cpp-python '
+                        '--extra-index-url https://abetlen.github.io/llama-cpp-python/whl/cpu\n'
+                        '  Or switch to Ollama: hari settings backend ollama'
+                    )
+                import importlib
+                importlib.invalidate_caches()
+                try:
+                    import llama_cpp
+                    from llama_cpp import Llama
+                except ImportError as exc2:
+                    raise RuntimeError(
+                        'llama-cpp-python was installed but cannot be imported — '
+                        'please restart your terminal and run `hari` again.'
+                    ) from exc2
             # The lightweight observer uses low-level sampling details verified
             # against the public logprob API for this exact version. Unknown
             # versions can still chat, but do not get an unverified score.

@@ -864,6 +864,24 @@ def launch_chat(*, plain: bool = False) -> None:
             break
 
 
+def _auto_setup_engine(plain: bool = False) -> None:
+    """Runs the engine setup silently in the background before first chat.
+
+    For plain/silent terminals the progress is printed directly.
+    For the TUI dashboard it runs in a background thread and silently
+    patches the import cache; the dashboard will find the engine ready
+    when the user sends their first message.
+    """
+    from hari_ai.runtime.setup_engine import ensure_engine_ready
+    if plain or is_notebook_or_headless():
+        # Line-mode: print progress so user can see what's happening
+        ensure_engine_ready(silent=False)
+    else:
+        # TUI dashboard mode: install in background thread, no terminal noise
+        t = threading.Thread(target=ensure_engine_ready, kwargs={'silent': True}, daemon=True)
+        t.start()
+
+
 def main():
     # Redirected Windows terminals can use legacy encodings that lack emoji.
     if hasattr(sys.stdout, 'reconfigure'):
@@ -879,6 +897,16 @@ def main():
         parsed.silent = True
     cmd = parsed.command.lower()
     all_args = parsed.args + unknown
+
+    # Auto-install the local GGUF inference engine on first run — no user action needed.
+    # Runs before any chat command so the engine is ready when the user types.
+    if cmd in ("run", "chat", "repl", "silent", "ask", "think", "code") or (
+        not all_args and cmd not in (
+            "version", "-v", "--version", "status", "setup",
+            "install-engine", "help", "-h", "--help",
+        )
+    ):
+        _auto_setup_engine(plain=parsed.plain or parsed.silent or cmd in ("silent",))
 
     if cmd in ["run", "chat", "repl", "silent"] and not all_args:
         launch_chat(plain=parsed.plain or parsed.silent or cmd == "silent")
