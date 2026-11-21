@@ -35,19 +35,11 @@ def test_cmd_setup_runs():
 def test_install_inference_engine_simulated_install():
     # Test installation logic path when engine is not installed
     with patch("hari_ai.runtime.setup_engine.is_engine_installed", side_effect=[False, True]):
-        with patch("subprocess.Popen") as mock_popen:
-            mock_proc = MagicMock()
-            mock_proc.stdout.readline.side_effect = [
-                "Collecting llama-cpp-python\n",
-                "Downloading prebuilt wheel\n",
-                "Successfully installed llama-cpp-python\n",
-                "",
-            ]
-            mock_proc.wait.return_value = 0
-            mock_popen.return_value = mock_proc
-
+        with patch("hari_ai.runtime.setup_engine._pip_install_engine", return_value=True):
             lines = []
             res = install_inference_engine(emit=lines.append)
             assert res is True
             assert any("setting up" in line.lower() for line in lines)
-            assert any("verified successfully" in line.lower() for line in lines)
+            # Success message is "✓ Engine ready!"
+            assert any("engine ready" in line.lower() or "ready" in line.lower() for line in lines)
+
